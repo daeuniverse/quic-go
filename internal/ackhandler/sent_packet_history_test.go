@@ -4,9 +4,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/lucas-clemente/quic-go/internal/utils"
+	"github.com/metacubex/quic-go/internal/utils"
 
-	"github.com/lucas-clemente/quic-go/internal/protocol"
+	"github.com/metacubex/quic-go/internal/protocol"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

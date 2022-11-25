@@ -5,8 +5,8 @@ import (
 	"errors"
 	"io"
 
-	"github.com/lucas-clemente/quic-go/internal/protocol"
-	"github.com/lucas-clemente/quic-go/quicvarint"
+	"github.com/metacubex/quic-go/internal/protocol"
+	"github.com/metacubex/quic-go/quicvarint"
 )
 
 // A StreamFrame of QUIC
