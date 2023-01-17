@@ -13,7 +13,7 @@ import (
 )
 
 type client struct {
-	sconn sendConn
+	sconn rawConn
 	// If the client is created with DialAddr, we create a packet conn.
 	// If it is started with Dial, we take a packet conn as a parameter.
 	createdPacketConn bool
@@ -193,7 +193,7 @@ func dialContext(
 	if err != nil {
 		return nil, err
 	}
-	c, err := newClient(pconn, remoteAddr, config, tlsConf, host, use0RTT, createdPacketConn)
+	c, err := newClient(pconn, config, tlsConf, host, use0RTT, createdPacketConn)
 	if err != nil {
 		return nil, err
 	}
@@ -208,9 +208,9 @@ func dialContext(
 		)
 	}
 	if c.tracer != nil {
-		c.tracer.StartedConnection(c.sconn.LocalAddr(), c.sconn.RemoteAddr(), c.srcConnID, c.destConnID)
+		c.tracer.StartedConnection(c.sconn.LocalAddr(), remoteAddr, c.srcConnID, c.destConnID)
 	}
-	if err := c.dial(ctx); err != nil {
+	if err := c.dial(ctx, remoteAddr); err != nil {
 		return nil, err
 	}
 	return c.conn, nil
@@ -218,7 +218,6 @@ func dialContext(
 
 func newClient(
 	pconn net.PacketConn,
-	remoteAddr net.Addr,
 	config *Config,
 	tlsConf *tls.Config,
 	host string,
@@ -257,10 +256,14 @@ func newClient(
 	if err != nil {
 		return nil, err
 	}
+	conn, err := wrapConn(pconn)
+	if err != nil {
+		return nil, err
+	}
 	c := &client{
 		srcConnID:         srcConnID,
 		destConnID:        destConnID,
-		sconn:             newSendPconn(pconn, remoteAddr),
+		sconn:             conn,
 		createdPacketConn: createdPacketConn,
 		use0RTT:           use0RTT,
 		tlsConf:           tlsConf,
@@ -272,11 +275,11 @@ func newClient(
 	return c, nil
 }
 
-func (c *client) dial(ctx context.Context) error {
-	c.logger.Infof("Starting new connection to %s (%s -> %s), source connection ID %s, destination connection ID %s, version %s", c.tlsConf.ServerName, c.sconn.LocalAddr(), c.sconn.RemoteAddr(), c.srcConnID, c.destConnID, c.version)
+func (c *client) dial(ctx context.Context, remoteAddr net.Addr) error {
+	c.logger.Infof("Starting new connection to %s (%s -> %s), source connection ID %s, destination connection ID %s, version %s", c.tlsConf.ServerName, c.sconn.LocalAddr(), remoteAddr, c.srcConnID, c.destConnID, c.version)
 
 	c.conn = newClientConnection(
-		c.sconn,
+		newSendConn(c.sconn, remoteAddr, nil),
 		c.packetHandlers,
 		c.destConnID,
 		c.srcConnID,
@@ -319,7 +322,7 @@ func (c *client) dial(ctx context.Context) error {
 			c.initialPacketNumber = recreateErr.nextPacketNumber
 			c.version = recreateErr.nextVersion
 			c.hasNegotiatedVersion = true
-			return c.dial(ctx)
+			return c.dial(ctx, remoteAddr)
 		}
 		return err
 	case <-earlyConnChan:

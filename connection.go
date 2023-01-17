@@ -2113,9 +2113,9 @@ func (s *connection) onStreamCompleted(id protocol.StreamID) {
 	}
 }
 
-type ErrMessageToLarge int
+type ErrMessageTooLarge int
 
-func (e ErrMessageToLarge) Error() string {
+func (e ErrMessageTooLarge) Error() string {
 	return fmt.Sprintf("message too large (max %d bytes)", e)
 }
 
@@ -2127,7 +2127,7 @@ func (s *connection) SendMessage(p []byte) error {
 	f := &wire.DatagramFrame{DataLenPresent: true}
 	maxDataLen := f.MaxDataLen(s.peerParams.MaxDatagramFrameSize, s.version)
 	if protocol.ByteCount(len(p)) > maxDataLen {
-		return ErrMessageToLarge(maxDataLen)
+		return ErrMessageTooLarge(maxDataLen)
 	}
 	f.Data = make([]byte, len(p))
 	copy(f.Data, p)
