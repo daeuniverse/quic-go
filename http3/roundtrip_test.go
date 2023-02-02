@@ -9,15 +9,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/quic-go/quic-go"
-	"github.com/quic-go/quic-go/internal/qerr"
+	"github.com/metacubex/quic-go"
+	"github.com/metacubex/quic-go/internal/qerr"
 
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
-//go:generate sh -c "./../mockgen_private.sh http3 mock_roundtripcloser_test.go github.com/quic-go/quic-go/http3 roundTripCloser"
+//go:generate sh -c "./../mockgen_private.sh http3 mock_roundtripcloser_test.go github.com/metacubex/quic-go/http3 roundTripCloser"
 
 type mockBody struct {
 	reader   bytes.Reader

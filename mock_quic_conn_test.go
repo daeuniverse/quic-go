@@ -10,8 +10,8 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	congestion "github.com/quic-go/quic-go/congestion"
-	protocol "github.com/quic-go/quic-go/internal/protocol"
+	congestion "github.com/metacubex/quic-go/congestion"
+	protocol "github.com/metacubex/quic-go/internal/protocol"
 )
 
 // MockQuicConn is a mock of QuicConn interface.

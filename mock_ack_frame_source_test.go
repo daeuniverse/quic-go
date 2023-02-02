@@ -8,8 +8,8 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	protocol "github.com/quic-go/quic-go/internal/protocol"
-	wire "github.com/quic-go/quic-go/internal/wire"
+	protocol "github.com/metacubex/quic-go/internal/protocol"
+	wire "github.com/metacubex/quic-go/internal/wire"
 )
 
 // MockAckFrameSource is a mock of AckFrameSource interface.

@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/quic-go/quic-go"
-	"github.com/quic-go/quic-go/internal/utils"
+	"github.com/metacubex/quic-go"
+	"github.com/metacubex/quic-go/internal/utils"
 
 	"github.com/quic-go/qpack"
 )
