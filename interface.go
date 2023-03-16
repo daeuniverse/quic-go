@@ -342,6 +342,8 @@ type Config struct {
 	// Enable QUIC datagram support (RFC 9221).
 	EnableDatagrams bool
 	Tracer          logging.Tracer
+
+	MaxDatagramFrameSize int64
 }
 
 // ConnectionState records basic details about a QUIC connection
