@@ -1,5 +1,9 @@
 package quic
 
+import (
+	"errors"
+)
+
 type sender interface {
 	Send(p *packetBuffer)
 	Run() error
@@ -99,7 +103,8 @@ func (h *sendQueue) Run() error {
 				// 1. Checking for "datagram too large" message from the kernel, as such,
 				// 2. Path MTU discovery,and
 				// 3. Eventual detection of loss PingFrame.
-				if !isMsgSizeErr(err) {
+				var tooLarge ErrMessageTooLarge
+				if !isMsgSizeErr(err) && !errors.As(err, &tooLarge) {
 					h.packetBuf = h.packetBuf[:0]
 					h.byteBuf = h.byteBuf[:0]
 					return err
