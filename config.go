@@ -124,5 +124,6 @@ func populateConfig(config *Config) *Config {
 		DisableVersionNegotiationPackets: config.DisableVersionNegotiationPackets,
 		Allow0RTT:                        config.Allow0RTT,
 		Tracer:                           config.Tracer,
+		MaxDatagramFrameSize:             config.MaxDatagramFrameSize,
 	}
 }
