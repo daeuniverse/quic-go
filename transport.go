@@ -292,6 +292,10 @@ func (t *Transport) listen(conn rawConn) {
 			t.logger.Debugf("Temporary error reading from conn: %w", err)
 			continue
 		}
+		if isMsgSizeErr(err) {
+			t.logger.Debugf("MsgSize error reading from conn: %w", err)
+			continue
+		}
 		if err != nil {
 			t.close(err)
 			return
