@@ -424,6 +424,10 @@ func (h *packetHandlerMap) listen() {
 			h.logger.Debugf("Temporary error reading from conn: %w", err)
 			continue
 		}
+		if isMsgSizeErr(err) {
+			h.logger.Debugf("MsgSize error reading from conn: %w", err)
+			continue
+		}
 		if err != nil {
 			h.close(err)
 			return
