@@ -393,3 +393,11 @@ func (t *Transport) maybeHandleStatelessReset(data []byte) bool {
 	}
 	return false
 }
+
+func (t *Transport) SetCreatedConn(createdConn bool) {
+	t.createdConn = createdConn
+}
+
+func (t *Transport) SetSingleUse(isSingleUse bool) {
+	t.isSingleUse = isSingleUse
+}
