@@ -14,7 +14,7 @@ type (
 type CongestionControl interface {
 	SetRTTStatsProvider(provider RTTStatsProvider)
 	TimeUntilSend(bytesInFlight ByteCount) time.Time
-	HasPacingBudget() bool
+	HasPacingBudget(now time.Time) bool
 	OnPacketSent(sentTime time.Time, bytesInFlight ByteCount, packetNumber PacketNumber, bytes ByteCount, isRetransmittable bool)
 	CanSend(bytesInFlight ByteCount) bool
 	MaybeExitSlowStart()

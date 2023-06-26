@@ -15,8 +15,8 @@ func (a *ccAdapter) TimeUntilSend(bytesInFlight protocol.ByteCount) time.Time {
 	return a.CC.TimeUntilSend(congestion.ByteCount(bytesInFlight))
 }
 
-func (a *ccAdapter) HasPacingBudget() bool {
-	return a.CC.HasPacingBudget()
+func (a *ccAdapter) HasPacingBudget(now time.Time) bool {
+	return a.CC.HasPacingBudget(now)
 }
 
 func (a *ccAdapter) OnPacketSent(sentTime time.Time, bytesInFlight protocol.ByteCount, packetNumber protocol.PacketNumber, bytes protocol.ByteCount, isRetransmittable bool) {

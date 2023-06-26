@@ -70,7 +70,7 @@ var _ = Describe("Transport", func() {
 		handled := make(chan struct{}, 2)
 		phm.EXPECT().Get(connID1).DoAndReturn(func(protocol.ConnectionID) (packetHandler, bool) {
 			h := NewMockPacketHandler(mockCtrl)
-			h.EXPECT().handlePacket(gomock.Any()).Do(func(p *receivedPacket) {
+			h.EXPECT().handlePacket(gomock.Any()).Do(func(p receivedPacket) {
 				defer GinkgoRecover()
 				connID, err := wire.ParseConnectionID(p.data, 0)
 				Expect(err).ToNot(HaveOccurred())
@@ -81,7 +81,7 @@ var _ = Describe("Transport", func() {
 		})
 		phm.EXPECT().Get(connID2).DoAndReturn(func(protocol.ConnectionID) (packetHandler, bool) {
 			h := NewMockPacketHandler(mockCtrl)
-			h.EXPECT().handlePacket(gomock.Any()).Do(func(p *receivedPacket) {
+			h.EXPECT().handlePacket(gomock.Any()).Do(func(p receivedPacket) {
 				defer GinkgoRecover()
 				connID, err := wire.ParseConnectionID(p.data, 0)
 				Expect(err).ToNot(HaveOccurred())
@@ -205,7 +205,7 @@ var _ = Describe("Transport", func() {
 		gomock.InOrder(
 			phm.EXPECT().GetByResetToken(token),
 			phm.EXPECT().Get(connID).Return(conn, true),
-			conn.EXPECT().handlePacket(gomock.Any()).Do(func(p *receivedPacket) {
+			conn.EXPECT().handlePacket(gomock.Any()).Do(func(p receivedPacket) {
 				Expect(p.data).To(Equal(b))
 				Expect(p.rcvTime).To(BeTemporally("~", time.Now(), time.Second))
 			}),
@@ -290,5 +290,21 @@ var _ = Describe("Transport", func() {
 		phm.EXPECT().Close(gomock.Any())
 		close(packetChan)
 		tr.Close()
+	})
+
+	It("closes uninitialized Transport and closes underlying PacketConn", func() {
+		packetChan := make(chan packetToRead)
+		pconn := newMockPacketConn(packetChan)
+
+		tr := &Transport{
+			Conn:        pconn,
+			createdConn: true, // owns pconn
+		}
+		// NO init
+
+		// shutdown
+		close(packetChan)
+		pconn.EXPECT().Close()
+		Expect(tr.Close()).To(Succeed())
 	})
 })

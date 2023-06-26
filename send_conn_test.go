@@ -19,12 +19,12 @@ var _ = Describe("Connection (for sending packets)", func() {
 		packetConn = NewMockPacketConn(mockCtrl)
 		rawConn, err := wrapConn(packetConn)
 		Expect(err).ToNot(HaveOccurred())
-		c = newSendConn(rawConn, addr, nil)
+		c = newSendConnWithPacketInfo(rawConn, addr, packetInfo{})
 	})
 
 	It("writes", func() {
 		packetConn.EXPECT().WriteTo([]byte("foobar"), addr)
-		Expect(c.Write([]byte("foobar"))).To(Succeed())
+		Expect(c.Write([]byte("foobar"), 6)).To(Succeed())
 	})
 
 	It("gets the remote address", func() {
