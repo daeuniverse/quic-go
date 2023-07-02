@@ -152,6 +152,8 @@ func (t *Transport) Dial(ctx context.Context, addr net.Addr, tlsConf *tls.Config
 	if t.isSingleUse {
 		onClose = func() { t.Close() }
 	}
+	tlsConf = tlsConf.Clone()
+	tlsConf.MinVersion = tls.VersionTLS13
 	return dial(ctx, newSendConn(t.conn, addr), t.connIDGenerator, t.handlerMap, tlsConf, conf, onClose, false)
 }
 
@@ -168,13 +170,13 @@ func (t *Transport) DialEarly(ctx context.Context, addr net.Addr, tlsConf *tls.C
 	if t.isSingleUse {
 		onClose = func() { t.Close() }
 	}
+	tlsConf = tlsConf.Clone()
+	tlsConf.MinVersion = tls.VersionTLS13
 	return dial(ctx, newSendConn(t.conn, addr), t.connIDGenerator, t.handlerMap, tlsConf, conf, onClose, true)
 }
 
 func (t *Transport) init(isServer bool) error {
 	t.initOnce.Do(func() {
-		getMultiplexer().AddConn(t.Conn)
-
 		var conn rawConn
 		if c, ok := t.Conn.(rawConn); ok {
 			conn = c
@@ -208,6 +210,7 @@ func (t *Transport) init(isServer bool) error {
 			t.connIDGenerator = &protocol.DefaultConnectionIDGenerator{ConnLen: t.connIDLen}
 		}
 
+		getMultiplexer().AddConn(t.Conn)
 		go t.listen(conn)
 		go t.runSendQueue()
 	})

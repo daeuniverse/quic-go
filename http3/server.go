@@ -62,8 +62,6 @@ func versionToALPN(v protocol.VersionNumber) string {
 	switch v {
 	case protocol.Version1, protocol.Version2:
 		return NextProtoH3
-	case protocol.VersionDraft29:
-		return NextProtoH3Draft29
 	default:
 		return ""
 	}
@@ -579,7 +577,7 @@ func (s *Server) handleRequest(conn quic.Connection, str quic.Stream, decoder *q
 		return newStreamError(ErrCodeGeneralProtocolError, err)
 	}
 
-	connState := conn.ConnectionState().TLS.ConnectionState
+	connState := conn.ConnectionState().TLS
 	req.TLS = &connState
 	req.RemoteAddr = conn.RemoteAddr().String()
 	body := newRequestBody(newStream(str, onFrameError))

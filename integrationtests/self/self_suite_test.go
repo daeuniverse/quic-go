@@ -8,7 +8,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	mrand "math/rand"
 	"os"
 	"runtime/pprof"
 	"strconv"
@@ -139,8 +138,6 @@ func init() {
 }
 
 var _ = BeforeSuite(func() {
-	mrand.Seed(GinkgoRandomSeed())
-
 	if enableQlog {
 		qlogTracer = tools.NewQlogger(GinkgoWriter)
 	}
@@ -149,8 +146,6 @@ var _ = BeforeSuite(func() {
 		version = quic.Version1
 	case "2":
 		version = quic.Version2
-	case "draft29":
-		version = quic.VersionDraft29
 	default:
 		Fail(fmt.Sprintf("unknown QUIC version: %s", versionParam))
 	}

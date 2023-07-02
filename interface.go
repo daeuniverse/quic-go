@@ -2,6 +2,7 @@ package quic
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"io"
 	"net"
@@ -20,10 +21,9 @@ type StreamID = protocol.StreamID
 type VersionNumber = protocol.VersionNumber
 
 const (
-	// VersionDraft29 is IETF QUIC draft-29
-	VersionDraft29 = protocol.VersionDraft29
 	// Version1 is RFC 9000
 	Version1 = protocol.Version1
+	// Version2 is RFC 9369
 	Version2 = protocol.Version2
 )
 
@@ -187,7 +187,7 @@ type Connection interface {
 	// SendMessage sends a message as a datagram, as specified in RFC 9221.
 	SendMessage([]byte) error
 	// ReceiveMessage gets a message received in a datagram, as specified in RFC 9221.
-	ReceiveMessage() ([]byte, error)
+	ReceiveMessage(context.Context) ([]byte, error)
 
 	// Replace the current congestion control algorithm with a new one.
 	SetCongestionControl(congestion.CongestionControl)
@@ -341,12 +341,14 @@ type ClientHelloInfo struct {
 // ConnectionState records basic details about a QUIC connection
 type ConnectionState struct {
 	// TLS contains information about the TLS connection state, incl. the tls.ConnectionState.
-	TLS handshake.ConnectionState
+	TLS tls.ConnectionState
 	// SupportsDatagrams says if support for QUIC datagrams (RFC 9221) was negotiated.
 	// This requires both nodes to support and enable the datagram extensions (via Config.EnableDatagrams).
 	// If datagram support was negotiated, datagrams can be sent and received using the
 	// SendMessage and ReceiveMessage methods on the Connection.
 	SupportsDatagrams bool
+	// Used0RTT says if 0-RTT resumption was used.
+	Used0RTT bool
 	// Version is the QUIC version of the QUIC connection.
 	Version VersionNumber
 }
