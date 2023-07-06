@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/metacubex/quic-go/internal/protocol"
+	"github.com/mzz2017/quic-go/internal/protocol"
 )
 
 // A PathChallengeFrame is a PATH_CHALLENGE frame

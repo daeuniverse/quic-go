@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"io"
 
-	mockquic "github.com/metacubex/quic-go/internal/mocks/quic"
+	mockquic "github.com/mzz2017/quic-go/internal/mocks/quic"
 
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"

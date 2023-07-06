@@ -3,8 +3,8 @@ package http3
 import (
 	"errors"
 
-	"github.com/metacubex/quic-go"
-	mockquic "github.com/metacubex/quic-go/internal/mocks/quic"
+	"github.com/mzz2017/quic-go"
+	mockquic "github.com/mzz2017/quic-go/internal/mocks/quic"
 
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"

@@ -8,10 +8,10 @@ import (
 	"net"
 	"time"
 
-	mocklogging "github.com/metacubex/quic-go/internal/mocks/logging"
-	"github.com/metacubex/quic-go/internal/protocol"
-	"github.com/metacubex/quic-go/internal/wire"
-	"github.com/metacubex/quic-go/logging"
+	mocklogging "github.com/mzz2017/quic-go/internal/mocks/logging"
+	"github.com/mzz2017/quic-go/internal/protocol"
+	"github.com/mzz2017/quic-go/internal/wire"
+	"github.com/mzz2017/quic-go/logging"
 
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"

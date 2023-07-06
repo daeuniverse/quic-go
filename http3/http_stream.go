@@ -3,7 +3,7 @@ package http3
 import (
 	"fmt"
 
-	"github.com/metacubex/quic-go"
+	"github.com/mzz2017/quic-go"
 )
 
 // A Stream is a HTTP/3 stream.

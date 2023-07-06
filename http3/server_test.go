@@ -13,12 +13,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/metacubex/quic-go"
-	mockquic "github.com/metacubex/quic-go/internal/mocks/quic"
-	"github.com/metacubex/quic-go/internal/protocol"
-	"github.com/metacubex/quic-go/internal/testdata"
-	"github.com/metacubex/quic-go/internal/utils"
-	"github.com/metacubex/quic-go/quicvarint"
+	"github.com/mzz2017/quic-go"
+	mockquic "github.com/mzz2017/quic-go/internal/mocks/quic"
+	"github.com/mzz2017/quic-go/internal/protocol"
+	"github.com/mzz2017/quic-go/internal/testdata"
+	"github.com/mzz2017/quic-go/internal/utils"
+	"github.com/mzz2017/quic-go/quicvarint"
 
 	"github.com/golang/mock/gomock"
 	"github.com/quic-go/qpack"

@@ -1,4 +1,4 @@
-module github.com/metacubex/quic-go
+module github.com/mzz2017/quic-go
 
 go 1.19
 

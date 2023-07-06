@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/metacubex/quic-go"
-	"github.com/metacubex/quic-go/internal/utils"
+	"github.com/mzz2017/quic-go"
+	"github.com/mzz2017/quic-go/internal/utils"
 
 	"github.com/quic-go/qpack"
 )
