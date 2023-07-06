@@ -23,9 +23,10 @@ type outgoingStreamsMap[T outgoingStream] struct {
 	lowestInQueue  uint64
 	highestInQueue uint64
 
-	nextStream  protocol.StreamNum // stream ID of the stream returned by OpenStream(Sync)
-	maxStream   protocol.StreamNum // the maximum stream ID we're allowed to open
-	blockedSent bool               // was a STREAMS_BLOCKED sent for the current maxStream
+	nextStream         protocol.StreamNum // stream ID of the stream returned by OpenStream(Sync)
+	maxStream          protocol.StreamNum // the maximum stream ID we're allowed to open
+	blockedSent        bool               // was a STREAMS_BLOCKED sent for the current maxStream
+	capabilityCallback func(n int64)
 
 	newStream            func(protocol.StreamNum) T
 	queueStreamIDBlocked func(*wire.StreamsBlockedFrame)
@@ -37,7 +38,11 @@ func newOutgoingStreamsMap[T outgoingStream](
 	streamType protocol.StreamType,
 	newStream func(protocol.StreamNum) T,
 	queueControlFrame func(wire.Frame),
+	capabilityCallback func(n int64),
 ) *outgoingStreamsMap[T] {
+	if capabilityCallback == nil {
+		capabilityCallback = func(n int64) {}
+	}
 	return &outgoingStreamsMap[T]{
 		streamType:           streamType,
 		streams:              make(map[protocol.StreamNum]T),
@@ -46,6 +51,7 @@ func newOutgoingStreamsMap[T outgoingStream](
 		nextStream:           1,
 		newStream:            newStream,
 		queueStreamIDBlocked: func(f *wire.StreamsBlockedFrame) { queueControlFrame(f) },
+		capabilityCallback:   capabilityCallback,
 	}
 }
 
@@ -120,6 +126,7 @@ func (m *outgoingStreamsMap[T]) openStream() T {
 	s := m.newStream(m.nextStream)
 	m.streams[m.nextStream] = s
 	m.nextStream++
+	m.capabilityCallback(int64(m.maxStream - m.nextStream))
 	return s
 }
 
@@ -177,6 +184,7 @@ func (m *outgoingStreamsMap[T]) SetMaxStream(num protocol.StreamNum) {
 		return
 	}
 	m.maxStream = num
+	m.capabilityCallback(int64(m.maxStream - m.nextStream))
 	m.blockedSent = false
 	if m.maxStream < m.nextStream-1+protocol.StreamNum(len(m.openQueue)) {
 		m.maybeSendBlockedFrame()

@@ -333,8 +333,9 @@ type Config struct {
 	// Only valid for the server.
 	Allow0RTT bool
 	// Enable QUIC datagram support (RFC 9221).
-	EnableDatagrams bool
-	Tracer          func(context.Context, logging.Perspective, ConnectionID) *logging.ConnectionTracer
+	EnableDatagrams    bool
+	Tracer             func(context.Context, logging.Perspective, ConnectionID) *logging.ConnectionTracer
+	CapabilityCallback func(n int64)
 }
 
 // ClientHelloInfo contains information about an incoming connection attempt.
