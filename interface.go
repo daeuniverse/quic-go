@@ -329,6 +329,8 @@ type Config struct {
 	Tracer          func(context.Context, logging.Perspective, ConnectionID) logging.ConnectionTracer
 
 	MaxDatagramFrameSize int64
+
+	CapabilityCallback func(n int64)
 }
 
 type ClientHelloInfo struct {
