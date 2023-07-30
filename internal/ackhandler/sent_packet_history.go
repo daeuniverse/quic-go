@@ -77,16 +77,16 @@ func (h *sentPacketHistory) Iterate(cb func(*Packet) (cont bool, err error)) err
 	for cont {
 		if outstandingEl == nil || (etcEl != nil && etcEl.Value.PacketNumber < outstandingEl.Value.PacketNumber) {
 			el = etcEl
+			if el == nil {
+				return nil
+			}
+			etcEl = etcEl.Next()
 		} else {
 			el = outstandingEl
-		}
-		if el == nil {
-			return nil
-		}
-		if el == outstandingEl {
+			if el == nil {
+				return nil
+			}
 			outstandingEl = outstandingEl.Next()
-		} else {
-			etcEl = etcEl.Next()
 		}
 		var err error
 		cont, err = cb(el.Value)
