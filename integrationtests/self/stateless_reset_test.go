@@ -2,14 +2,14 @@ package self_test
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
-	"math/rand"
 	"net"
 	"sync/atomic"
 	"time"
 
-	"github.com/metacubex/quic-go"
-	quicproxy "github.com/metacubex/quic-go/integrationtests/tools/proxy"
+	"github.com/mzz2017/quic-go"
+	quicproxy "github.com/mzz2017/quic-go/integrationtests/tools/proxy"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

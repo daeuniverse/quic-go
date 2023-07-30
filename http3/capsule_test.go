@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/metacubex/quic-go/quicvarint"
+	"github.com/mzz2017/quic-go/quicvarint"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

@@ -9,10 +9,10 @@ import (
 	"net"
 	"time"
 
-	"github.com/metacubex/quic-go"
-	"github.com/metacubex/quic-go/internal/protocol"
-	"github.com/metacubex/quic-go/internal/qerr"
-	"github.com/metacubex/quic-go/internal/qtls"
+	"github.com/mzz2017/quic-go"
+	"github.com/mzz2017/quic-go/internal/protocol"
+	"github.com/mzz2017/quic-go/internal/qerr"
+	"github.com/mzz2017/quic-go/internal/qtls"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -198,7 +198,10 @@ var _ = Describe("Handshake tests", func() {
 			var transportErr *quic.TransportError
 			Expect(errors.As(err, &transportErr)).To(BeTrue())
 			Expect(transportErr.ErrorCode.IsCryptoError()).To(BeTrue())
-			Expect(transportErr.Error()).To(ContainSubstring("tls: bad certificate"))
+			Expect(transportErr.Error()).To(Or(
+				ContainSubstring("tls: certificate required"),
+				ContainSubstring("tls: bad certificate"),
+			))
 		})
 
 		It("uses the ServerName in the tls.Config", func() {

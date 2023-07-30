@@ -4,11 +4,11 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/metacubex/quic-go/internal/ackhandler"
-	"github.com/metacubex/quic-go/internal/protocol"
-	"github.com/metacubex/quic-go/internal/utils/ringbuffer"
-	"github.com/metacubex/quic-go/internal/wire"
-	"github.com/metacubex/quic-go/quicvarint"
+	"github.com/mzz2017/quic-go/internal/ackhandler"
+	"github.com/mzz2017/quic-go/internal/protocol"
+	"github.com/mzz2017/quic-go/internal/utils/ringbuffer"
+	"github.com/mzz2017/quic-go/internal/wire"
+	"github.com/mzz2017/quic-go/quicvarint"
 )
 
 type framer interface {

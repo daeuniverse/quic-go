@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	mocklogging "github.com/metacubex/quic-go/internal/mocks/logging"
-	"github.com/metacubex/quic-go/internal/protocol"
-	"github.com/metacubex/quic-go/internal/qerr"
-	"github.com/metacubex/quic-go/internal/utils"
+	mocklogging "github.com/mzz2017/quic-go/internal/mocks/logging"
+	"github.com/mzz2017/quic-go/internal/protocol"
+	"github.com/mzz2017/quic-go/internal/qerr"
+	"github.com/mzz2017/quic-go/internal/utils"
 
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
@@ -47,7 +47,7 @@ var _ = Describe("Updatable AEAD", func() {
 		),
 	)
 
-	for _, ver := range []protocol.VersionNumber{protocol.VersionDraft29, protocol.Version1, protocol.Version2} {
+	for _, ver := range []protocol.VersionNumber{protocol.Version1, protocol.Version2} {
 		v := ver
 
 		Context(fmt.Sprintf("using version %s", v), func() {

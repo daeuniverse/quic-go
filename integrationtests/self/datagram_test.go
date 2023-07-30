@@ -10,9 +10,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/metacubex/quic-go"
-	quicproxy "github.com/metacubex/quic-go/integrationtests/tools/proxy"
-	"github.com/metacubex/quic-go/internal/wire"
+	"github.com/mzz2017/quic-go"
+	quicproxy "github.com/mzz2017/quic-go/integrationtests/tools/proxy"
+	"github.com/mzz2017/quic-go/internal/wire"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -120,7 +120,7 @@ var _ = Describe("Datagram test", func() {
 		for {
 			// Close the connection if no message is received for 100 ms.
 			timer := time.AfterFunc(scaleDuration(100*time.Millisecond), func() { conn.CloseWithError(0, "") })
-			if _, err := conn.ReceiveMessage(); err != nil {
+			if _, err := conn.ReceiveMessage(context.Background()); err != nil {
 				break
 			}
 			timer.Stop()

@@ -13,7 +13,7 @@ import (
 
 	"golang.org/x/net/idna"
 
-	"github.com/metacubex/quic-go"
+	"github.com/mzz2017/quic-go"
 )
 
 // MethodGet0RTT allows a GET request to be sent using 0-RTT.

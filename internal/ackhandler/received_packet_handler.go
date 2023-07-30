@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/metacubex/quic-go/internal/protocol"
-	"github.com/metacubex/quic-go/internal/utils"
-	"github.com/metacubex/quic-go/internal/wire"
+	"github.com/mzz2017/quic-go/internal/protocol"
+	"github.com/mzz2017/quic-go/internal/utils"
+	"github.com/mzz2017/quic-go/internal/wire"
 )
 
 type receivedPacketHandler struct {
@@ -47,6 +47,11 @@ func (h *receivedPacketHandler) ReceivedPacket(
 	case protocol.EncryptionInitial:
 		return h.initialPackets.ReceivedPacket(pn, ecn, rcvTime, shouldInstigateAck)
 	case protocol.EncryptionHandshake:
+		// The Handshake packet number space might already have been dropped as a result
+		// of processing the CRYPTO frame that was contained in this packet.
+		if h.handshakePackets == nil {
+			return nil
+		}
 		return h.handshakePackets.ReceivedPacket(pn, ecn, rcvTime, shouldInstigateAck)
 	case protocol.Encryption0RTT:
 		if h.lowest1RTTPacket != protocol.InvalidPacketNumber && pn > h.lowest1RTTPacket {

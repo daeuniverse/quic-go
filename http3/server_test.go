@@ -13,12 +13,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/metacubex/quic-go"
-	mockquic "github.com/metacubex/quic-go/internal/mocks/quic"
-	"github.com/metacubex/quic-go/internal/protocol"
-	"github.com/metacubex/quic-go/internal/testdata"
-	"github.com/metacubex/quic-go/internal/utils"
-	"github.com/metacubex/quic-go/quicvarint"
+	"github.com/mzz2017/quic-go"
+	mockquic "github.com/mzz2017/quic-go/internal/mocks/quic"
+	"github.com/mzz2017/quic-go/internal/protocol"
+	"github.com/mzz2017/quic-go/internal/testdata"
+	"github.com/mzz2017/quic-go/internal/utils"
+	"github.com/mzz2017/quic-go/quicvarint"
 
 	"github.com/golang/mock/gomock"
 	"github.com/quic-go/qpack"
@@ -193,8 +193,7 @@ var _ = Describe("Server", func() {
 
 			serr := s.handleRequest(conn, str, qpackDecoder, nil)
 			Expect(serr.err).ToNot(HaveOccurred())
-			hfs := decodeHeader(responseBuf)
-			Expect(hfs).To(HaveKeyWithValue(":status", []string{"500"}))
+			Expect(responseBuf.Bytes()).To(HaveLen(0))
 		})
 
 		It("handles a panicking handler", func() {
@@ -210,8 +209,7 @@ var _ = Describe("Server", func() {
 
 			serr := s.handleRequest(conn, str, qpackDecoder, nil)
 			Expect(serr.err).ToNot(HaveOccurred())
-			hfs := decodeHeader(responseBuf)
-			Expect(hfs).To(HaveKeyWithValue(":status", []string{"500"}))
+			Expect(responseBuf.Bytes()).To(HaveLen(0))
 		})
 
 		Context("hijacking bidirectional streams", func() {
@@ -779,13 +777,13 @@ var _ = Describe("Server", func() {
 
 	Context("setting http headers", func() {
 		BeforeEach(func() {
-			s.QuicConfig = &quic.Config{Versions: []protocol.VersionNumber{protocol.VersionDraft29}}
+			s.QuicConfig = &quic.Config{Versions: []protocol.VersionNumber{protocol.Version1}}
 		})
 
 		var ln1 QUICEarlyListener
 		var ln2 QUICEarlyListener
 		expected := http.Header{
-			"Alt-Svc": {`h3-29=":443"; ma=2592000`},
+			"Alt-Svc": {`h3=":443"; ma=2592000`},
 		}
 
 		addListener := func(addr string, ln *QUICEarlyListener) {
@@ -840,9 +838,9 @@ var _ = Describe("Server", func() {
 		})
 
 		It("works if the quic.Config sets QUIC versions", func() {
-			s.QuicConfig.Versions = []quic.VersionNumber{quic.Version1, quic.VersionDraft29}
+			s.QuicConfig.Versions = []quic.VersionNumber{quic.Version1, quic.Version2}
 			addListener(":443", &ln1)
-			checkSetHeaders(Equal(http.Header{"Alt-Svc": {`h3=":443"; ma=2592000,h3-29=":443"; ma=2592000`}}))
+			checkSetHeaders(Equal(http.Header{"Alt-Svc": {`h3=":443"; ma=2592000`}}))
 			removeListener(&ln1)
 			checkSetHeaderError()
 		})
@@ -850,7 +848,7 @@ var _ = Describe("Server", func() {
 		It("uses s.Port if set to a non-zero value", func() {
 			s.Port = 8443
 			addListener(":443", &ln1)
-			checkSetHeaders(Equal(http.Header{"Alt-Svc": {`h3-29=":8443"; ma=2592000`}}))
+			checkSetHeaders(Equal(http.Header{"Alt-Svc": {`h3=":8443"; ma=2592000`}}))
 			removeListener(&ln1)
 			checkSetHeaderError()
 		})
@@ -870,8 +868,8 @@ var _ = Describe("Server", func() {
 			addListener(":443", &ln1)
 			addListener(":8443", &ln2)
 			checkSetHeaders(Or(
-				Equal(http.Header{"Alt-Svc": {`h3-29=":443"; ma=2592000,h3-29=":8443"; ma=2592000`}}),
-				Equal(http.Header{"Alt-Svc": {`h3-29=":8443"; ma=2592000,h3-29=":443"; ma=2592000`}}),
+				Equal(http.Header{"Alt-Svc": {`h3=":443"; ma=2592000,h3=":8443"; ma=2592000`}}),
+				Equal(http.Header{"Alt-Svc": {`h3=":8443"; ma=2592000,h3=":443"; ma=2592000`}}),
 			))
 			removeListener(&ln1)
 			removeListener(&ln2)
@@ -926,18 +924,7 @@ var _ = Describe("Server", func() {
 			c, err := quic.DialAddr(context.Background(), ln.Addr().String(), &tls.Config{InsecureSkipVerify: true, NextProtos: []string{NextProtoH3}}, nil)
 			Expect(err).ToNot(HaveOccurred())
 			defer c.CloseWithError(0, "")
-			Expect(c.ConnectionState().TLS.ConnectionState.NegotiatedProtocol).To(Equal(NextProtoH3))
-		})
-
-		It("advertises h3-29 for draft-29", func() {
-			conf := ConfigureTLSConfig(testdata.GetTLSConfig())
-			ln, err := quic.ListenAddr("localhost:0", conf, &quic.Config{Versions: []quic.VersionNumber{quic.VersionDraft29}})
-			Expect(err).ToNot(HaveOccurred())
-			defer ln.Close()
-			c, err := quic.DialAddr(context.Background(), ln.Addr().String(), &tls.Config{InsecureSkipVerify: true, NextProtos: []string{NextProtoH3Draft29}}, nil)
-			Expect(err).ToNot(HaveOccurred())
-			defer c.CloseWithError(0, "")
-			Expect(c.ConnectionState().TLS.ConnectionState.NegotiatedProtocol).To(Equal(NextProtoH3Draft29))
+			Expect(c.ConnectionState().TLS.NegotiatedProtocol).To(Equal(NextProtoH3))
 		})
 
 		It("sets the GetConfigForClient callback if no tls.Config is given", func() {
@@ -965,7 +952,7 @@ var _ = Describe("Server", func() {
 			c, err := quic.DialAddr(context.Background(), ln.Addr().String(), &tls.Config{InsecureSkipVerify: true, NextProtos: []string{NextProtoH3}}, nil)
 			Expect(err).ToNot(HaveOccurred())
 			defer c.CloseWithError(0, "")
-			Expect(c.ConnectionState().TLS.ConnectionState.NegotiatedProtocol).To(Equal(NextProtoH3))
+			Expect(c.ConnectionState().TLS.NegotiatedProtocol).To(Equal(NextProtoH3))
 		})
 
 		It("works if GetConfigForClient returns a nil tls.Config", func() {
@@ -978,7 +965,7 @@ var _ = Describe("Server", func() {
 			c, err := quic.DialAddr(context.Background(), ln.Addr().String(), &tls.Config{InsecureSkipVerify: true, NextProtos: []string{NextProtoH3}}, nil)
 			Expect(err).ToNot(HaveOccurred())
 			defer c.CloseWithError(0, "")
-			Expect(c.ConnectionState().TLS.ConnectionState.NegotiatedProtocol).To(Equal(NextProtoH3))
+			Expect(c.ConnectionState().TLS.NegotiatedProtocol).To(Equal(NextProtoH3))
 		})
 
 		It("sets the ALPN for tls.Configs returned by the tls.GetConfigForClient, if it returns a static tls.Config", func() {
@@ -996,7 +983,7 @@ var _ = Describe("Server", func() {
 			c, err := quic.DialAddr(context.Background(), ln.Addr().String(), &tls.Config{InsecureSkipVerify: true, NextProtos: []string{NextProtoH3}}, nil)
 			Expect(err).ToNot(HaveOccurred())
 			defer c.CloseWithError(0, "")
-			Expect(c.ConnectionState().TLS.ConnectionState.NegotiatedProtocol).To(Equal(NextProtoH3))
+			Expect(c.ConnectionState().TLS.NegotiatedProtocol).To(Equal(NextProtoH3))
 			// check that the original config was not modified
 			Expect(tlsClientConf.NextProtos).To(Equal([]string{"foo", "bar"}))
 		})

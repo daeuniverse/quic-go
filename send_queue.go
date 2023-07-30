@@ -3,7 +3,7 @@ package quic
 import (
 	"errors"
 
-	"github.com/metacubex/quic-go/internal/protocol"
+	"github.com/mzz2017/quic-go/internal/protocol"
 )
 
 type sender interface {
@@ -87,7 +87,7 @@ func (h *sendQueue) Run() error {
 				// 2. Path MTU discovery,and
 				// 3. Eventual detection of loss PingFrame.
 				var tooLarge ErrMessageTooLarge
-				if !isMsgSizeErr(err) && !errors.As(err, &tooLarge) {
+				if !isSendMsgSizeErr(err) && !errors.As(err, &tooLarge) {
 					return err
 				}
 			}

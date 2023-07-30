@@ -8,8 +8,8 @@ import (
 	"net"
 	"time"
 
-	"github.com/metacubex/quic-go"
-	quicproxy "github.com/metacubex/quic-go/integrationtests/tools/proxy"
+	"github.com/mzz2017/quic-go"
+	quicproxy "github.com/mzz2017/quic-go/integrationtests/tools/proxy"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

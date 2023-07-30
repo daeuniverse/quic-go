@@ -1,11 +1,12 @@
 package quic
 
 import (
+	"context"
 	"sync"
 
-	"github.com/metacubex/quic-go/internal/protocol"
-	"github.com/metacubex/quic-go/internal/utils"
-	"github.com/metacubex/quic-go/internal/wire"
+	"github.com/mzz2017/quic-go/internal/protocol"
+	"github.com/mzz2017/quic-go/internal/utils"
+	"github.com/mzz2017/quic-go/internal/wire"
 )
 
 const DatagramFrameMaxPeekTimes = 10
@@ -110,7 +111,7 @@ func (h *datagramQueue) HandleDatagramFrame(f *wire.DatagramFrame) {
 }
 
 // Receive gets a received DATAGRAM frame.
-func (h *datagramQueue) Receive() ([]byte, error) {
+func (h *datagramQueue) Receive(ctx context.Context) ([]byte, error) {
 	for {
 		h.rcvMx.Lock()
 		if len(h.rcvQueue) > 0 {
@@ -125,6 +126,8 @@ func (h *datagramQueue) Receive() ([]byte, error) {
 			continue
 		case <-h.closed:
 			return nil, h.closeErr
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		}
 	}
 }

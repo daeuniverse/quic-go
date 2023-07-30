@@ -3,7 +3,7 @@ package congestion
 import (
 	"time"
 
-	"github.com/metacubex/quic-go/internal/protocol"
+	"github.com/mzz2017/quic-go/internal/protocol"
 )
 
 type (

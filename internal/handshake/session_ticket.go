@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/metacubex/quic-go/internal/wire"
-	"github.com/metacubex/quic-go/quicvarint"
+	"github.com/mzz2017/quic-go/internal/wire"
+	"github.com/mzz2017/quic-go/quicvarint"
 )
 
-const sessionTicketRevision = 2
+const sessionTicketRevision = 3
 
 type sessionTicket struct {
 	Parameters *wire.TransportParameters

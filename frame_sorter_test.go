@@ -4,12 +4,11 @@ import (
 	"bytes"
 	"fmt"
 	"math"
-	"math/rand"
 	"time"
 
-	"github.com/metacubex/quic-go/internal/protocol"
-	"github.com/metacubex/quic-go/internal/utils"
-	"github.com/metacubex/quic-go/internal/utils/tree"
+	"golang.org/x/exp/rand"
+
+	"github.com/mzz2017/quic-go/internal/protocol"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -1417,7 +1416,7 @@ var _ = Describe("frame sorter", func() {
 				BeforeEach(func() {
 					seed := time.Now().UnixNano()
 					fmt.Fprintf(GinkgoWriter, "Seed: %d\n", seed)
-					rand.Seed(seed)
+					rand.Seed(uint64(seed))
 
 					callbacks = nil
 					dataLen = 25

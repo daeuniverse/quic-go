@@ -6,12 +6,13 @@ import (
 	"crypto/tls"
 	"errors"
 	"net"
+	"syscall"
 	"time"
 
-	mocklogging "github.com/metacubex/quic-go/internal/mocks/logging"
-	"github.com/metacubex/quic-go/internal/protocol"
-	"github.com/metacubex/quic-go/internal/wire"
-	"github.com/metacubex/quic-go/logging"
+	mocklogging "github.com/mzz2017/quic-go/internal/mocks/logging"
+	"github.com/mzz2017/quic-go/internal/protocol"
+	"github.com/mzz2017/quic-go/internal/wire"
+	"github.com/mzz2017/quic-go/logging"
 
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
@@ -307,4 +308,27 @@ var _ = Describe("Transport", func() {
 		pconn.EXPECT().Close()
 		Expect(tr.Close()).To(Succeed())
 	})
+
+	It("doesn't add the PacketConn to the multiplexer if (*Transport).init fails", func() {
+		packetChan := make(chan packetToRead)
+		pconn := newMockPacketConn(packetChan)
+		syscallconn := &mockSyscallConn{pconn}
+
+		tr := &Transport{
+			Conn: syscallconn,
+		}
+
+		err := tr.init(false)
+		Expect(err).To(HaveOccurred())
+		conns := getMultiplexer().(*connMultiplexer).conns
+		Expect(len(conns)).To(BeZero())
+	})
 })
+
+type mockSyscallConn struct {
+	net.PacketConn
+}
+
+func (c *mockSyscallConn) SyscallConn() (syscall.RawConn, error) {
+	return nil, errors.New("mocked")
+}

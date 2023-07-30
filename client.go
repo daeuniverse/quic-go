@@ -6,9 +6,9 @@ import (
 	"errors"
 	"net"
 
-	"github.com/metacubex/quic-go/internal/protocol"
-	"github.com/metacubex/quic-go/internal/utils"
-	"github.com/metacubex/quic-go/logging"
+	"github.com/mzz2017/quic-go/internal/protocol"
+	"github.com/mzz2017/quic-go/internal/utils"
+	"github.com/mzz2017/quic-go/logging"
 )
 
 type client struct {

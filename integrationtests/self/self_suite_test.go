@@ -8,7 +8,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	mrand "math/rand"
 	"os"
 	"runtime/pprof"
 	"strconv"
@@ -17,12 +16,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/metacubex/quic-go"
-	"github.com/metacubex/quic-go/integrationtests/tools"
-	"github.com/metacubex/quic-go/internal/protocol"
-	"github.com/metacubex/quic-go/internal/utils"
-	"github.com/metacubex/quic-go/internal/wire"
-	"github.com/metacubex/quic-go/logging"
+	"github.com/mzz2017/quic-go"
+	"github.com/mzz2017/quic-go/integrationtests/tools"
+	"github.com/mzz2017/quic-go/internal/protocol"
+	"github.com/mzz2017/quic-go/internal/utils"
+	"github.com/mzz2017/quic-go/internal/wire"
+	"github.com/mzz2017/quic-go/logging"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -139,8 +138,6 @@ func init() {
 }
 
 var _ = BeforeSuite(func() {
-	mrand.Seed(GinkgoRandomSeed())
-
 	if enableQlog {
 		qlogTracer = tools.NewQlogger(GinkgoWriter)
 	}
@@ -149,8 +146,6 @@ var _ = BeforeSuite(func() {
 		version = quic.Version1
 	case "2":
 		version = quic.Version2
-	case "draft29":
-		version = quic.VersionDraft29
 	default:
 		Fail(fmt.Sprintf("unknown QUIC version: %s", versionParam))
 	}

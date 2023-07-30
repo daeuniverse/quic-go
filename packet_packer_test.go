@@ -3,18 +3,19 @@ package quic
 import (
 	"bytes"
 	"fmt"
-	"math/rand"
 	"net"
 	"time"
 
-	"github.com/metacubex/quic-go/internal/ackhandler"
-	"github.com/metacubex/quic-go/internal/handshake"
-	"github.com/metacubex/quic-go/internal/mocks"
-	mockackhandler "github.com/metacubex/quic-go/internal/mocks/ackhandler"
-	"github.com/metacubex/quic-go/internal/protocol"
-	"github.com/metacubex/quic-go/internal/qerr"
-	"github.com/metacubex/quic-go/internal/utils"
-	"github.com/metacubex/quic-go/internal/wire"
+	"golang.org/x/exp/rand"
+
+	"github.com/mzz2017/quic-go/internal/ackhandler"
+	"github.com/mzz2017/quic-go/internal/handshake"
+	"github.com/mzz2017/quic-go/internal/mocks"
+	mockackhandler "github.com/mzz2017/quic-go/internal/mocks/ackhandler"
+	"github.com/mzz2017/quic-go/internal/protocol"
+	"github.com/mzz2017/quic-go/internal/qerr"
+	"github.com/mzz2017/quic-go/internal/utils"
+	"github.com/mzz2017/quic-go/internal/wire"
 
 	"github.com/golang/mock/gomock"
 
@@ -84,7 +85,7 @@ var _ = Describe("Packet packer", func() {
 	}
 
 	BeforeEach(func() {
-		rand.Seed(GinkgoRandomSeed())
+		rand.Seed(uint64(GinkgoRandomSeed()))
 		retransmissionQueue = newRetransmissionQueue()
 		mockSender := NewMockStreamSender(mockCtrl)
 		mockSender.EXPECT().onHasStreamData(gomock.Any()).AnyTimes()

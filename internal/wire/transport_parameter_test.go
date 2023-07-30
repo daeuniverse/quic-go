@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"fmt"
 	"math"
-	"math/rand"
 	"net"
 	"time"
 
-	"github.com/metacubex/quic-go/internal/protocol"
-	"github.com/metacubex/quic-go/internal/qerr"
-	"github.com/metacubex/quic-go/quicvarint"
+	"golang.org/x/exp/rand"
+
+	"github.com/mzz2017/quic-go/internal/protocol"
+	"github.com/mzz2017/quic-go/internal/qerr"
+	"github.com/mzz2017/quic-go/quicvarint"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -31,7 +32,7 @@ var _ = Describe("Transport Parameters", func() {
 	}
 
 	BeforeEach(func() {
-		rand.Seed(GinkgoRandomSeed())
+		rand.Seed(uint64(GinkgoRandomSeed()))
 	})
 
 	appendInitialSourceConnectionID := func(b []byte) []byte {

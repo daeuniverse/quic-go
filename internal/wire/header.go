@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/metacubex/quic-go/internal/protocol"
-	"github.com/metacubex/quic-go/internal/utils"
-	"github.com/metacubex/quic-go/quicvarint"
+	"github.com/mzz2017/quic-go/internal/protocol"
+	"github.com/mzz2017/quic-go/internal/utils"
+	"github.com/mzz2017/quic-go/quicvarint"
 )
 
 // ParseConnectionID parses the destination connection ID of a packet.
@@ -108,7 +108,7 @@ func Is0RTTPacket(b []byte) bool {
 	version := protocol.VersionNumber(binary.BigEndian.Uint32(b[1:5]))
 	//nolint:exhaustive // We only need to test QUIC versions that we support.
 	switch version {
-	case protocol.Version1, protocol.VersionDraft29:
+	case protocol.Version1:
 		return b[0]>>4&0b11 == 0b01
 	case protocol.Version2:
 		return b[0]>>4&0b11 == 0b10

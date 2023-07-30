@@ -2,11 +2,10 @@ package wire
 
 import (
 	"encoding/binary"
-	mrand "math/rand"
 
 	"golang.org/x/exp/rand"
 
-	"github.com/metacubex/quic-go/internal/protocol"
+	"github.com/mzz2017/quic-go/internal/protocol"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -15,7 +14,7 @@ import (
 var _ = Describe("Version Negotiation Packets", func() {
 	randConnID := func(l int) protocol.ArbitraryLenConnectionID {
 		b := make(protocol.ArbitraryLenConnectionID, l)
-		_, err := mrand.Read(b)
+		_, err := rand.Read(b)
 		Expect(err).ToNot(HaveOccurred())
 		return b
 	}

@@ -16,9 +16,8 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/metacubex/quic-go"
-	"github.com/metacubex/quic-go/http3"
-	"github.com/metacubex/quic-go/internal/protocol"
+	"github.com/mzz2017/quic-go"
+	"github.com/mzz2017/quic-go/http3"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -397,11 +396,7 @@ var _ = Describe("HTTP tests", func() {
 
 	It("serves other QUIC connections", func() {
 		tlsConf := getTLSConfig()
-		if version == protocol.VersionDraft29 {
-			tlsConf.NextProtos = []string{http3.NextProtoH3Draft29}
-		} else {
-			tlsConf.NextProtos = []string{http3.NextProtoH3}
-		}
+		tlsConf.NextProtos = []string{http3.NextProtoH3}
 		ln, err := quic.ListenAddr("localhost:0", tlsConf, nil)
 		Expect(err).ToNot(HaveOccurred())
 		defer ln.Close()

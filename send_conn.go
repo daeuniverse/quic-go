@@ -4,7 +4,7 @@ import (
 	"math"
 	"net"
 
-	"github.com/metacubex/quic-go/internal/protocol"
+	"github.com/mzz2017/quic-go/internal/protocol"
 )
 
 // A sendConn allows sending using a simple Write() on a non-connected packet conn.
