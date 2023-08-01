@@ -140,6 +140,30 @@ var _ = Describe("Handshake tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
+		It("has the right local and remote address on the ClientHelloInfo.Conn", func() {
+			var local, remote net.Addr
+			done := make(chan struct{})
+			tlsConf := &tls.Config{
+				GetConfigForClient: func(info *tls.ClientHelloInfo) (*tls.Config, error) {
+					defer close(done)
+					local = info.Conn.LocalAddr()
+					remote = info.Conn.RemoteAddr()
+					return getTLSConfig(), nil
+				},
+			}
+			runServer(tlsConf)
+			conn, err := quic.DialAddr(
+				context.Background(),
+				fmt.Sprintf("localhost:%d", server.Addr().(*net.UDPAddr).Port),
+				getTLSClientConfig(),
+				getQuicConfig(nil),
+			)
+			Expect(err).ToNot(HaveOccurred())
+			Eventually(done).Should(BeClosed())
+			Expect(server.Addr()).To(Equal(local))
+			Expect(conn.LocalAddr().(*net.UDPAddr).Port).To(Equal(remote.(*net.UDPAddr).Port))
+		})
+
 		It("works with a long certificate chain", func() {
 			runServer(getTLSConfigWithLongCertChain())
 			_, err := quic.DialAddr(
@@ -198,7 +222,10 @@ var _ = Describe("Handshake tests", func() {
 			var transportErr *quic.TransportError
 			Expect(errors.As(err, &transportErr)).To(BeTrue())
 			Expect(transportErr.ErrorCode.IsCryptoError()).To(BeTrue())
-			Expect(transportErr.Error()).To(ContainSubstring("tls: bad certificate"))
+			Expect(transportErr.Error()).To(Or(
+				ContainSubstring("tls: certificate required"),
+				ContainSubstring("tls: bad certificate"),
+			))
 		})
 
 		It("uses the ServerName in the tls.Config", func() {
