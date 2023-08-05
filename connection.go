@@ -321,6 +321,8 @@ var newConnection = func(
 	}
 	cs := handshake.NewCryptoSetupServer(
 		clientDestConnID,
+		conn.LocalAddr(),
+		conn.RemoteAddr(),
 		params,
 		tlsConf,
 		conf.Allow0RTT,
@@ -872,7 +874,7 @@ func (s *connection) handlePacketImpl(rp receivedPacket) bool {
 	// Set remote address to the address of the last received valid packet
 	if s.perspective == protocol.PerspectiveServer && processed {
 		// Connection migration
-		s.conn.SetRemoteAddr(rp.remoteAddr)
+		// s.conn.SetRemoteAddr(rp.remoteAddr)
 	}
 
 	p.buffer.MaybeRelease()

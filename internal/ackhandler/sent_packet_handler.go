@@ -781,7 +781,7 @@ func (h *sentPacketHandler) SendMode(now time.Time) SendMode {
 		}
 		return SendAck
 	}
-	if !h.getCongestionControl().HasPacingBudget(now) {
+	if !cc.HasPacingBudget(now) {
 		return SendPacingLimited
 	}
 	return SendAny
