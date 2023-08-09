@@ -1,0 +1,612 @@
+diff --git a/connection.go b/connection.go
+index 7b4ac5b9..efebf072 100644
+--- a/connection.go
++++ b/connection.go
+@@ -729,20 +729,22 @@ func (s *connection) idleTimeoutStartTime() time.Time {
+ }
+ 
+ func (s *connection) handleHandshakeComplete() error {
+-	s.handshakeComplete = true
+ 	defer s.handshakeCtxCancel()
+ 	// Once the handshake completes, we have derived 1-RTT keys.
+-	// There's no point in queueing undecryptable packets for later decryption any more.
++	// There's no point in queueing undecryptable packets for later decryption anymore.
+ 	s.undecryptablePackets = nil
+ 
+ 	s.connIDManager.SetHandshakeComplete()
+ 	s.connIDGenerator.SetHandshakeComplete()
+ 
++	// The server applies transport parameters right away, but the client side has to wait for handshake completion.
++	// During a 0-RTT connection, the client is only allowed to use the new transport parameters for 1-RTT packets.
+ 	if s.perspective == protocol.PerspectiveClient {
+ 		s.applyTransportParameters()
+ 		return nil
+ 	}
+ 
++	// All these only apply to the server side.
+ 	if err := s.handleHandshakeConfirmed(); err != nil {
+ 		return err
+ 	}
+@@ -1247,6 +1249,7 @@ func (s *connection) handleFrames(
+ 	if log != nil {
+ 		frames = make([]logging.Frame, 0, 4)
+ 	}
++	handshakeWasComplete := s.handshakeComplete
+ 	var handleErr error
+ 	for len(data) > 0 {
+ 		l, frame, err := s.frameParser.ParseNext(data, encLevel, s.version)
+@@ -1283,6 +1286,17 @@ func (s *connection) handleFrames(
+ 			return false, handleErr
+ 		}
+ 	}
++
++	// Handle completion of the handshake after processing all the frames.
++	// This ensures that we correctly handle the following case on the server side:
++	// We receive a Handshake packet that contains the CRYPTO frame that allows us to complete the handshake,
++	// and an ACK serialized after that CRYPTO frame. In this case, we still want to process the ACK frame.
++	if !handshakeWasComplete && s.handshakeComplete {
++		if err := s.handleHandshakeComplete(); err != nil {
++			return false, err
++		}
++	}
++
+ 	return
+ }
+ 
+@@ -1378,7 +1392,9 @@ func (s *connection) handleHandshakeEvents() error {
+ 		case handshake.EventNoEvent:
+ 			return nil
+ 		case handshake.EventHandshakeComplete:
+-			err = s.handleHandshakeComplete()
++			// Don't call handleHandshakeComplete yet.
++			// It's advantageous to process ACK frames that might be serialized after the CRYPTO frame first.
++			s.handshakeComplete = true
+ 		case handshake.EventReceivedTransportParameters:
+ 			err = s.handleTransportParameters(ev.TransportParameters)
+ 		case handshake.EventRestoredTransportParameters:
+@@ -1493,7 +1509,7 @@ func (s *connection) handleHandshakeDoneFrame() error {
+ 		}
+ 	}
+ 	if !s.handshakeConfirmed {
+-		s.handleHandshakeConfirmed()
++		return s.handleHandshakeConfirmed()
+ 	}
+ 	return nil
+ }
+@@ -1506,6 +1522,9 @@ func (s *connection) handleAckFrame(frame *wire.AckFrame, encLevel protocol.Encr
+ 	if !acked1RTTPacket {
+ 		return nil
+ 	}
++	// On the client side: If the packet acknowledged a 1-RTT packet, this confirms the handshake.
++	// This is only possible if the ACK was sent in a 1-RTT packet.
++	// This is an optimization over simply waiting for a HANDSHAKE_DONE frame, see section 4.1.2 of RFC 9001.
+ 	if s.perspective == protocol.PerspectiveClient && !s.handshakeConfirmed {
+ 		if err := s.handleHandshakeConfirmed(); err != nil {
+ 			return err
+@@ -1677,12 +1696,23 @@ func (s *connection) restoreTransportParameters(params *wire.TransportParameters
+ }
+ 
+ func (s *connection) handleTransportParameters(params *wire.TransportParameters) error {
++	if s.tracer != nil {
++		s.tracer.ReceivedTransportParameters(params)
++	}
+ 	if err := s.checkTransportParameters(params); err != nil {
+ 		return &qerr.TransportError{
+ 			ErrorCode:    qerr.TransportParameterError,
+ 			ErrorMessage: err.Error(),
+ 		}
+ 	}
++
++	if s.perspective == protocol.PerspectiveClient && s.peerParams != nil && s.ConnectionState().Used0RTT && !params.ValidForUpdate(s.peerParams) {
++		return &qerr.TransportError{
++			ErrorCode:    qerr.ProtocolViolation,
++			ErrorMessage: "server sent reduced limits after accepting 0-RTT data",
++		}
++	}
++
+ 	s.peerParams = params
+ 	// On the client side we have to wait for handshake completion.
+ 	// During a 0-RTT connection, we are only allowed to use the new transport parameters for 1-RTT packets.
+@@ -1703,9 +1733,6 @@ func (s *connection) checkTransportParameters(params *wire.TransportParameters)
+ 	if s.logger.Debug() {
+ 		s.logger.Debugf("Processed Transport Parameters: %s", params)
+ 	}
+-	if s.tracer != nil {
+-		s.tracer.ReceivedTransportParameters(params)
+-	}
+ 
+ 	// check the initial_source_connection_id
+ 	if params.InitialSourceConnectionID != s.handshakeDestConnID {
+diff --git a/connection_test.go b/connection_test.go
+index 710c941b..c64723fb 100644
+--- a/connection_test.go
++++ b/connection_test.go
+@@ -1891,7 +1891,6 @@ var _ = Describe("Connection", func() {
+ 
+ 	It("cancels the HandshakeComplete context when the handshake completes", func() {
+ 		packer.EXPECT().PackCoalescedPacket(false, gomock.Any(), conn.version).AnyTimes()
+-		finishHandshake := make(chan struct{})
+ 		sph := mockackhandler.NewMockSentPacketHandler(mockCtrl)
+ 		conn.sentPacketHandler = sph
+ 		tracer.EXPECT().DroppedEncryptionLevel(protocol.EncryptionHandshake)
+@@ -1901,53 +1900,26 @@ var _ = Describe("Connection", func() {
+ 		sph.EXPECT().DropPackets(protocol.EncryptionHandshake)
+ 		sph.EXPECT().SetHandshakeConfirmed()
+ 		connRunner.EXPECT().Retire(clientDestConnID)
+-		go func() {
+-			defer GinkgoRecover()
+-			<-finishHandshake
+-			cryptoSetup.EXPECT().StartHandshake()
+-			cryptoSetup.EXPECT().NextEvent().Return(handshake.Event{Kind: handshake.EventHandshakeComplete})
+-			cryptoSetup.EXPECT().NextEvent().Return(handshake.Event{Kind: handshake.EventNoEvent})
+-			cryptoSetup.EXPECT().SetHandshakeConfirmed()
+-			cryptoSetup.EXPECT().GetSessionTicket()
+-			conn.run()
+-		}()
++		cryptoSetup.EXPECT().SetHandshakeConfirmed()
++		cryptoSetup.EXPECT().GetSessionTicket()
+ 		handshakeCtx := conn.HandshakeComplete()
+ 		Consistently(handshakeCtx).ShouldNot(BeClosed())
+-		close(finishHandshake)
++		Expect(conn.handleHandshakeComplete()).To(Succeed())
+ 		Eventually(handshakeCtx).Should(BeClosed())
+-		// make sure the go routine returns
+-		streamManager.EXPECT().CloseWithError(gomock.Any())
+-		expectReplaceWithClosed()
+-		packer.EXPECT().PackApplicationClose(gomock.Any(), gomock.Any(), conn.version).Return(&coalescedPacket{buffer: getPacketBuffer()}, nil)
+-		cryptoSetup.EXPECT().Close()
+-		mconn.EXPECT().Write(gomock.Any(), gomock.Any())
+-		tracer.EXPECT().ClosedConnection(gomock.Any())
+-		tracer.EXPECT().Close()
+-		conn.shutdown()
+-		Eventually(conn.Context().Done()).Should(BeClosed())
+ 	})
+ 
+ 	It("sends a session ticket when the handshake completes", func() {
+ 		const size = protocol.MaxPostHandshakeCryptoFrameSize * 3 / 2
+ 		packer.EXPECT().PackCoalescedPacket(false, gomock.Any(), conn.version).AnyTimes()
+-		finishHandshake := make(chan struct{})
+ 		connRunner.EXPECT().Retire(clientDestConnID)
+ 		conn.sentPacketHandler.DropPackets(protocol.EncryptionInitial)
+ 		tracer.EXPECT().DroppedEncryptionLevel(protocol.EncryptionHandshake)
+-		go func() {
+-			defer GinkgoRecover()
+-			<-finishHandshake
+-			cryptoSetup.EXPECT().StartHandshake()
+-			cryptoSetup.EXPECT().NextEvent().Return(handshake.Event{Kind: handshake.EventHandshakeComplete})
+-			cryptoSetup.EXPECT().NextEvent().Return(handshake.Event{Kind: handshake.EventNoEvent})
+-			cryptoSetup.EXPECT().SetHandshakeConfirmed()
+-			cryptoSetup.EXPECT().GetSessionTicket().Return(make([]byte, size), nil)
+-			conn.run()
+-		}()
++		cryptoSetup.EXPECT().SetHandshakeConfirmed()
++		cryptoSetup.EXPECT().GetSessionTicket().Return(make([]byte, size), nil)
+ 
+ 		handshakeCtx := conn.HandshakeComplete()
+ 		Consistently(handshakeCtx).ShouldNot(BeClosed())
+-		close(finishHandshake)
++		Expect(conn.handleHandshakeComplete()).To(Succeed())
+ 		var frames []ackhandler.Frame
+ 		Eventually(func() []ackhandler.Frame {
+ 			frames, _ = conn.framer.AppendControlFrames(nil, protocol.MaxByteCount, protocol.Version1)
+@@ -1963,16 +1935,6 @@ var _ = Describe("Connection", func() {
+ 			}
+ 		}
+ 		Expect(size).To(BeEquivalentTo(s))
+-		// make sure the go routine returns
+-		streamManager.EXPECT().CloseWithError(gomock.Any())
+-		expectReplaceWithClosed()
+-		packer.EXPECT().PackApplicationClose(gomock.Any(), gomock.Any(), conn.version).Return(&coalescedPacket{buffer: getPacketBuffer()}, nil)
+-		cryptoSetup.EXPECT().Close()
+-		mconn.EXPECT().Write(gomock.Any(), gomock.Any())
+-		tracer.EXPECT().ClosedConnection(gomock.Any())
+-		tracer.EXPECT().Close()
+-		conn.shutdown()
+-		Eventually(conn.Context().Done()).Should(BeClosed())
+ 	})
+ 
+ 	It("doesn't cancel the HandshakeComplete context when the handshake fails", func() {
+@@ -2027,6 +1989,7 @@ var _ = Describe("Connection", func() {
+ 			cryptoSetup.EXPECT().SetHandshakeConfirmed()
+ 			cryptoSetup.EXPECT().GetSessionTicket()
+ 			mconn.EXPECT().Write(gomock.Any(), gomock.Any())
++			Expect(conn.handleHandshakeComplete()).To(Succeed())
+ 			conn.run()
+ 		}()
+ 		Eventually(done).Should(BeClosed())
+@@ -2350,6 +2313,7 @@ var _ = Describe("Connection", func() {
+ 				cryptoSetup.EXPECT().NextEvent().Return(handshake.Event{Kind: handshake.EventNoEvent})
+ 				cryptoSetup.EXPECT().GetSessionTicket().MaxTimes(1)
+ 				cryptoSetup.EXPECT().SetHandshakeConfirmed().MaxTimes(1)
++				Expect(conn.handleHandshakeComplete()).To(Succeed())
+ 				err := conn.run()
+ 				nerr, ok := err.(net.Error)
+ 				Expect(ok).To(BeTrue())
+@@ -2867,7 +2831,10 @@ var _ = Describe("Client Connection", func() {
+ 					TransportParameters: params,
+ 				})
+ 				cryptoSetup.EXPECT().NextEvent().Return(handshake.Event{Kind: handshake.EventHandshakeComplete}).MaxTimes(1)
+-				cryptoSetup.EXPECT().NextEvent().Return(handshake.Event{Kind: handshake.EventNoEvent}).MaxTimes(1)
++				cryptoSetup.EXPECT().NextEvent().Return(handshake.Event{Kind: handshake.EventNoEvent}).MaxTimes(1).Do(func() {
++					defer GinkgoRecover()
++					Expect(conn.handleHandshakeComplete()).To(Succeed())
++				})
+ 				errChan <- conn.run()
+ 				close(errChan)
+ 			}()
+@@ -3035,6 +3002,40 @@ var _ = Describe("Client Connection", func() {
+ 				ErrorMessage: "expected original_destination_connection_id to equal deadbeef, is decafbad",
+ 			})))
+ 		})
++
++		It("errors if the transport parameters contain reduced limits after knowing 0-RTT data is accepted by the server", func() {
++			conn.perspective = protocol.PerspectiveClient
++			conn.peerParams = &wire.TransportParameters{
++				ActiveConnectionIDLimit:        3,
++				InitialMaxData:                 0x5000,
++				InitialMaxStreamDataBidiLocal:  0x5000,
++				InitialMaxStreamDataBidiRemote: 1000,
++				InitialMaxStreamDataUni:        1000,
++				MaxBidiStreamNum:               500,
++				MaxUniStreamNum:                500,
++			}
++			params := &wire.TransportParameters{
++				OriginalDestinationConnectionID: destConnID,
++				InitialSourceConnectionID:       destConnID,
++				ActiveConnectionIDLimit:         3,
++				InitialMaxData:                  0x5000,
++				InitialMaxStreamDataBidiLocal:   0x5000,
++				InitialMaxStreamDataBidiRemote:  1000,
++				InitialMaxStreamDataUni:         1000,
++				MaxBidiStreamNum:                300,
++				MaxUniStreamNum:                 300,
++			}
++			expectClose(false, true)
++			processed := make(chan struct{})
++			tracer.EXPECT().ReceivedTransportParameters(params).Do(func(*wire.TransportParameters) { close(processed) })
++			cryptoSetup.EXPECT().ConnectionState().Return(handshake.ConnectionState{Used0RTT: true})
++			paramsChan <- params
++			Eventually(processed).Should(BeClosed())
++			Eventually(errChan).Should(Receive(MatchError(&qerr.TransportError{
++				ErrorCode:    qerr.ProtocolViolation,
++				ErrorMessage: "server sent reduced limits after accepting 0-RTT data",
++			})))
++		})
+ 	})
+ 
+ 	Context("handling potentially injected packets", func() {
+diff --git a/integrationtests/self/handshake_test.go b/integrationtests/self/handshake_test.go
+index c33941ca..00de59a4 100644
+--- a/integrationtests/self/handshake_test.go
++++ b/integrationtests/self/handshake_test.go
+@@ -142,13 +142,20 @@ var _ = Describe("Handshake tests", func() {
+ 
+ 		It("has the right local and remote address on the tls.Config.GetConfigForClient ClientHelloInfo.Conn", func() {
+ 			var local, remote net.Addr
++			var local2, remote2 net.Addr
+ 			done := make(chan struct{})
+ 			tlsConf := &tls.Config{
+ 				GetConfigForClient: func(info *tls.ClientHelloInfo) (*tls.Config, error) {
+-					defer close(done)
+ 					local = info.Conn.LocalAddr()
+ 					remote = info.Conn.RemoteAddr()
+-					return getTLSConfig(), nil
++					conf := getTLSConfig()
++					conf.GetCertificate = func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
++						defer close(done)
++						local2 = info.Conn.LocalAddr()
++						remote2 = info.Conn.RemoteAddr()
++						return &(conf.Certificates[0]), nil
++					}
++					return conf, nil
+ 				},
+ 			}
+ 			runServer(tlsConf)
+@@ -162,6 +169,8 @@ var _ = Describe("Handshake tests", func() {
+ 			Eventually(done).Should(BeClosed())
+ 			Expect(server.Addr()).To(Equal(local))
+ 			Expect(conn.LocalAddr().(*net.UDPAddr).Port).To(Equal(remote.(*net.UDPAddr).Port))
++			Expect(local).To(Equal(local2))
++			Expect(remote).To(Equal(remote2))
+ 		})
+ 
+ 		It("has the right local and remote address on the tls.Config.GetCertificate ClientHelloInfo.Conn", func() {
+diff --git a/internal/handshake/crypto_setup.go b/internal/handshake/crypto_setup.go
+index a902504f..49d3973a 100644
+--- a/internal/handshake/crypto_setup.go
++++ b/internal/handshake/crypto_setup.go
+@@ -127,25 +127,37 @@ func NewCryptoSetupServer(
+ 
+ 	quicConf := &qtls.QUICConfig{TLSConfig: tlsConf}
+ 	qtls.SetupConfigForServer(quicConf, cs.allow0RTT, cs.getDataForSessionTicket, cs.accept0RTT)
+-	if quicConf.TLSConfig.GetConfigForClient != nil {
+-		gcfc := quicConf.TLSConfig.GetConfigForClient
+-		quicConf.TLSConfig.GetConfigForClient = func(info *tls.ClientHelloInfo) (*tls.Config, error) {
++	addConnToClientHelloInfo(quicConf.TLSConfig, localAddr, remoteAddr)
++
++	cs.tlsConf = quicConf.TLSConfig
++	cs.conn = qtls.QUICServer(quicConf)
++
++	return cs
++}
++
++// The tls.Config contains two callbacks that pass in a tls.ClientHelloInfo.
++// Since crypto/tls doesn't do it, we need to make sure to set the Conn field with a fake net.Conn
++// that allows the caller to get the local and the remote address.
++func addConnToClientHelloInfo(conf *tls.Config, localAddr, remoteAddr net.Addr) {
++	if conf.GetConfigForClient != nil {
++		gcfc := conf.GetConfigForClient
++		conf.GetConfigForClient = func(info *tls.ClientHelloInfo) (*tls.Config, error) {
+ 			info.Conn = &conn{localAddr: localAddr, remoteAddr: remoteAddr}
+-			return gcfc(info)
++			c, err := gcfc(info)
++			if c != nil {
++				// We're returning a tls.Config here, so we need to apply this recursively.
++				addConnToClientHelloInfo(c, localAddr, remoteAddr)
++			}
++			return c, err
+ 		}
+ 	}
+-	if quicConf.TLSConfig.GetCertificate != nil {
+-		gc := quicConf.TLSConfig.GetCertificate
+-		quicConf.TLSConfig.GetCertificate = func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
++	if conf.GetCertificate != nil {
++		gc := conf.GetCertificate
++		conf.GetCertificate = func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
+ 			info.Conn = &conn{localAddr: localAddr, remoteAddr: remoteAddr}
+ 			return gc(info)
+ 		}
+ 	}
+-
+-	cs.tlsConf = quicConf.TLSConfig
+-	cs.conn = qtls.QUICServer(quicConf)
+-
+-	return cs
+ }
+ 
+ func newCryptoSetup(
+diff --git a/internal/handshake/crypto_setup_test.go b/internal/handshake/crypto_setup_test.go
+index 304f8f7d..72ffcff5 100644
+--- a/internal/handshake/crypto_setup_test.go
++++ b/internal/handshake/crypto_setup_test.go
+@@ -29,6 +29,25 @@ const (
+ )
+ 
+ var _ = Describe("Crypto Setup TLS", func() {
++	generateCert := func() tls.Certificate {
++		priv, err := rsa.GenerateKey(rand.Reader, 2048)
++		Expect(err).ToNot(HaveOccurred())
++		tmpl := &x509.Certificate{
++			SerialNumber:          big.NewInt(1),
++			Subject:               pkix.Name{},
++			SignatureAlgorithm:    x509.SHA256WithRSA,
++			NotBefore:             time.Now(),
++			NotAfter:              time.Now().Add(time.Hour), // valid for an hour
++			BasicConstraintsValid: true,
++		}
++		certDER, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, priv.Public(), priv)
++		Expect(err).ToNot(HaveOccurred())
++		return tls.Certificate{
++			PrivateKey:  priv,
++			Certificate: [][]byte{certDER},
++		}
++	}
++
+ 	var clientConf, serverConf *tls.Config
+ 
+ 	BeforeEach(func() {
+@@ -86,26 +105,69 @@ var _ = Describe("Crypto Setup TLS", func() {
+ 		Expect(err.Error()).To(ContainSubstring("tls: handshake data received at wrong level"))
+ 	})
+ 
+-	Context("doing the handshake", func() {
+-		generateCert := func() tls.Certificate {
+-			priv, err := rsa.GenerateKey(rand.Reader, 2048)
++	Context("filling in a net.Conn in tls.ClientHelloInfo", func() {
++		var (
++			local  = &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 42}
++			remote = &net.UDPAddr{IP: net.IPv4(192, 168, 0, 1), Port: 1337}
++		)
++
++		It("wraps GetCertificate", func() {
++			var localAddr, remoteAddr net.Addr
++			tlsConf := &tls.Config{
++				GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
++					localAddr = info.Conn.LocalAddr()
++					remoteAddr = info.Conn.RemoteAddr()
++					cert := generateCert()
++					return &cert, nil
++				},
++			}
++			addConnToClientHelloInfo(tlsConf, local, remote)
++			_, err := tlsConf.GetCertificate(&tls.ClientHelloInfo{})
+ 			Expect(err).ToNot(HaveOccurred())
+-			tmpl := &x509.Certificate{
+-				SerialNumber:          big.NewInt(1),
+-				Subject:               pkix.Name{},
+-				SignatureAlgorithm:    x509.SHA256WithRSA,
+-				NotBefore:             time.Now(),
+-				NotAfter:              time.Now().Add(time.Hour), // valid for an hour
+-				BasicConstraintsValid: true,
++			Expect(localAddr).To(Equal(local))
++			Expect(remoteAddr).To(Equal(remote))
++		})
++
++		It("wraps GetConfigForClient", func() {
++			var localAddr, remoteAddr net.Addr
++			tlsConf := &tls.Config{
++				GetConfigForClient: func(info *tls.ClientHelloInfo) (*tls.Config, error) {
++					localAddr = info.Conn.LocalAddr()
++					remoteAddr = info.Conn.RemoteAddr()
++					return &tls.Config{}, nil
++				},
+ 			}
+-			certDER, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, priv.Public(), priv)
++			addConnToClientHelloInfo(tlsConf, local, remote)
++			_, err := tlsConf.GetConfigForClient(&tls.ClientHelloInfo{})
+ 			Expect(err).ToNot(HaveOccurred())
+-			return tls.Certificate{
+-				PrivateKey:  priv,
+-				Certificate: [][]byte{certDER},
++			Expect(localAddr).To(Equal(local))
++			Expect(remoteAddr).To(Equal(remote))
++		})
++
++		It("wraps GetConfigForClient, recursively", func() {
++			var localAddr, remoteAddr net.Addr
++			tlsConf := &tls.Config{}
++			tlsConf.GetConfigForClient = func(info *tls.ClientHelloInfo) (*tls.Config, error) {
++				conf := tlsConf.Clone()
++				conf.GetCertificate = func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
++					localAddr = info.Conn.LocalAddr()
++					remoteAddr = info.Conn.RemoteAddr()
++					cert := generateCert()
++					return &cert, nil
++				}
++				return conf, nil
+ 			}
+-		}
++			addConnToClientHelloInfo(tlsConf, local, remote)
++			conf, err := tlsConf.GetConfigForClient(&tls.ClientHelloInfo{})
++			Expect(err).ToNot(HaveOccurred())
++			_, err = conf.GetCertificate(&tls.ClientHelloInfo{})
++			Expect(err).ToNot(HaveOccurred())
++			Expect(localAddr).To(Equal(local))
++			Expect(remoteAddr).To(Equal(remote))
++		})
++	})
+ 
++	Context("doing the handshake", func() {
+ 		newRTTStatsWithRTT := func(rtt time.Duration) *utils.RTTStats {
+ 			rttStats := &utils.RTTStats{}
+ 			rttStats.UpdateRTT(rtt, 0, time.Now())
+diff --git a/internal/wire/transport_parameter_test.go b/internal/wire/transport_parameter_test.go
+index fd8c519b..98ef5370 100644
+--- a/internal/wire/transport_parameter_test.go
++++ b/internal/wire/transport_parameter_test.go
+@@ -612,5 +612,93 @@ var _ = Describe("Transport Parameters", func() {
+ 				Expect(p.ValidFor0RTT(saved)).To(BeFalse())
+ 			})
+ 		})
++
++		Context("client checks the parameters after successfully sending 0-RTT data", func() {
++			var p TransportParameters
++			saved := &TransportParameters{
++				InitialMaxStreamDataBidiLocal:  1,
++				InitialMaxStreamDataBidiRemote: 2,
++				InitialMaxStreamDataUni:        3,
++				InitialMaxData:                 4,
++				MaxBidiStreamNum:               5,
++				MaxUniStreamNum:                6,
++				ActiveConnectionIDLimit:        7,
++			}
++
++			BeforeEach(func() {
++				p = *saved
++				Expect(p.ValidForUpdate(saved)).To(BeTrue())
++			})
++
++			It("rejects the parameters if the InitialMaxStreamDataBidiLocal was reduced", func() {
++				p.InitialMaxStreamDataBidiLocal = saved.InitialMaxStreamDataBidiLocal - 1
++				Expect(p.ValidForUpdate(saved)).To(BeFalse())
++			})
++
++			It("doesn't reject the parameters if the InitialMaxStreamDataBidiLocal was increased", func() {
++				p.InitialMaxStreamDataBidiLocal = saved.InitialMaxStreamDataBidiLocal + 1
++				Expect(p.ValidForUpdate(saved)).To(BeTrue())
++			})
++
++			It("rejects the parameters if the InitialMaxStreamDataBidiRemote was reduced", func() {
++				p.InitialMaxStreamDataBidiRemote = saved.InitialMaxStreamDataBidiRemote - 1
++				Expect(p.ValidForUpdate(saved)).To(BeFalse())
++			})
++
++			It("doesn't reject the parameters if the InitialMaxStreamDataBidiRemote was increased", func() {
++				p.InitialMaxStreamDataBidiRemote = saved.InitialMaxStreamDataBidiRemote + 1
++				Expect(p.ValidForUpdate(saved)).To(BeTrue())
++			})
++
++			It("rejects the parameters if the InitialMaxStreamDataUni was reduced", func() {
++				p.InitialMaxStreamDataUni = saved.InitialMaxStreamDataUni - 1
++				Expect(p.ValidForUpdate(saved)).To(BeFalse())
++			})
++
++			It("doesn't reject the parameters if the InitialMaxStreamDataUni was increased", func() {
++				p.InitialMaxStreamDataUni = saved.InitialMaxStreamDataUni + 1
++				Expect(p.ValidForUpdate(saved)).To(BeTrue())
++			})
++
++			It("rejects the parameters if the InitialMaxData was reduced", func() {
++				p.InitialMaxData = saved.InitialMaxData - 1
++				Expect(p.ValidForUpdate(saved)).To(BeFalse())
++			})
++
++			It("doesn't reject the parameters if the InitialMaxData was increased", func() {
++				p.InitialMaxData = saved.InitialMaxData + 1
++				Expect(p.ValidForUpdate(saved)).To(BeTrue())
++			})
++
++			It("rejects the parameters if the MaxBidiStreamNum was reduced", func() {
++				p.MaxBidiStreamNum = saved.MaxBidiStreamNum - 1
++				Expect(p.ValidForUpdate(saved)).To(BeFalse())
++			})
++
++			It("doesn't reject the parameters if the MaxBidiStreamNum was increased", func() {
++				p.MaxBidiStreamNum = saved.MaxBidiStreamNum + 1
++				Expect(p.ValidForUpdate(saved)).To(BeTrue())
++			})
++
++			It("rejects the parameters if the MaxUniStreamNum reduced", func() {
++				p.MaxUniStreamNum = saved.MaxUniStreamNum - 1
++				Expect(p.ValidForUpdate(saved)).To(BeFalse())
++			})
++
++			It("doesn't reject the parameters if the MaxUniStreamNum was increased", func() {
++				p.MaxUniStreamNum = saved.MaxUniStreamNum + 1
++				Expect(p.ValidForUpdate(saved)).To(BeTrue())
++			})
++
++			It("rejects the parameters if the ActiveConnectionIDLimit reduced", func() {
++				p.ActiveConnectionIDLimit = saved.ActiveConnectionIDLimit - 1
++				Expect(p.ValidForUpdate(saved)).To(BeFalse())
++			})
++
++			It("doesn't reject the parameters if the ActiveConnectionIDLimit increased", func() {
++				p.ActiveConnectionIDLimit = saved.ActiveConnectionIDLimit + 1
++				Expect(p.ValidForUpdate(saved)).To(BeTrue())
++			})
++		})
+ 	})
+ })
+diff --git a/internal/wire/transport_parameters.go b/internal/wire/transport_parameters.go
+index b46ff107..abb55b87 100644
+--- a/internal/wire/transport_parameters.go
++++ b/internal/wire/transport_parameters.go
+@@ -481,6 +481,18 @@ func (p *TransportParameters) ValidFor0RTT(saved *TransportParameters) bool {
+ 		p.ActiveConnectionIDLimit == saved.ActiveConnectionIDLimit
+ }
+ 
++// ValidForUpdate checks that the new transport parameters don't reduce limits after resuming a 0-RTT connection.
++// It is only used on the client side.
++func (p *TransportParameters) ValidForUpdate(saved *TransportParameters) bool {
++	return p.ActiveConnectionIDLimit >= saved.ActiveConnectionIDLimit &&
++		p.InitialMaxData >= saved.InitialMaxData &&
++		p.InitialMaxStreamDataBidiLocal >= saved.InitialMaxStreamDataBidiLocal &&
++		p.InitialMaxStreamDataBidiRemote >= saved.InitialMaxStreamDataBidiRemote &&
++		p.InitialMaxStreamDataUni >= saved.InitialMaxStreamDataUni &&
++		p.MaxBidiStreamNum >= saved.MaxBidiStreamNum &&
++		p.MaxUniStreamNum >= saved.MaxUniStreamNum
++}
++
+ // String returns a string representation, intended for logging.
+ func (p *TransportParameters) String() string {
+ 	logString := "&wire.TransportParameters{OriginalDestinationConnectionID: %s, InitialSourceConnectionID: %s, "
+diff --git a/my b/my
+new file mode 100644
+index 00000000..e69de29b
+diff --git a/race b/race
+new file mode 100644
+index 00000000..e69de29b
+diff --git a/v.0.21 b/v.0.21
+new file mode 100644
+index 00000000..e69de29b
