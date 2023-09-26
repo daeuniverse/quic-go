@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/quic-go/quic-go"
+	quicproxy "github.com/quic-go/quic-go/integrationtests/tools/proxy"
 	"github.com/quic-go/quic-go/internal/protocol"
 	"github.com/quic-go/quic-go/internal/qerr"
 	"github.com/quic-go/quic-go/internal/qtls"
@@ -80,6 +81,26 @@ var _ = Describe("Handshake tests", func() {
 			}
 		}()
 	}
+
+	It("returns the cancellation reason when a dial is canceled", func() {
+		ctx, cancel := context.WithCancelCause(context.Background())
+		errChan := make(chan error, 1)
+		go func() {
+			_, err := quic.DialAddr(
+				ctx,
+				"localhost:1234", // nobody is listening on this port, but we're going to cancel this dial anyway
+				getTLSClientConfig(),
+				getQuicConfig(nil),
+			)
+			errChan <- err
+		}()
+
+		cancel(errors.New("application cancelled"))
+		var err error
+		Eventually(errChan).Should(Receive(&err))
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError("application cancelled"))
+	})
 
 	Context("using different cipher suites", func() {
 		for n, id := range map[string]uint16{
@@ -454,16 +475,31 @@ var _ = Describe("Handshake tests", func() {
 		})
 
 		It("rejects invalid Retry token with the INVALID_TOKEN error", func() {
+			const rtt = 10 * time.Millisecond
 			serverConfig.RequireAddressValidation = func(net.Addr) bool { return true }
-			serverConfig.MaxRetryTokenAge = -time.Second
+			// The validity period of the retry token is the handshake timeout,
+			// which is twice the handshake idle timeout.
+			// By setting the handshake timeout shorter than the RTT, the token will have expired by the time
+			// it reaches the server.
+			serverConfig.HandshakeIdleTimeout = rtt / 5
 
 			server, err := quic.ListenAddr("localhost:0", getTLSConfig(), serverConfig)
 			Expect(err).ToNot(HaveOccurred())
 			defer server.Close()
 
+			serverPort := server.Addr().(*net.UDPAddr).Port
+			proxy, err := quicproxy.NewQuicProxy("localhost:0", &quicproxy.Opts{
+				RemoteAddr: fmt.Sprintf("localhost:%d", serverPort),
+				DelayPacket: func(quicproxy.Direction, []byte) time.Duration {
+					return rtt / 2
+				},
+			})
+			Expect(err).ToNot(HaveOccurred())
+			defer proxy.Close()
+
 			_, err = quic.DialAddr(
 				context.Background(),
-				fmt.Sprintf("localhost:%d", server.Addr().(*net.UDPAddr).Port),
+				fmt.Sprintf("localhost:%d", proxy.LocalPort()),
 				getTLSClientConfig(),
 				nil,
 			)

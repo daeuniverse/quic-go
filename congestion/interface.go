@@ -19,7 +19,7 @@ type CongestionControl interface {
 	CanSend(bytesInFlight ByteCount) bool
 	MaybeExitSlowStart()
 	OnPacketAcked(number PacketNumber, ackedBytes ByteCount, priorInFlight ByteCount, eventTime time.Time)
-	OnPacketLost(number PacketNumber, lostBytes ByteCount, priorInFlight ByteCount)
+	OnCongestionEvent(number PacketNumber, lostBytes ByteCount, priorInFlight ByteCount)
 	OnRetransmissionTimeout(packetsRetransmitted bool)
 	SetMaxDatagramSize(size ByteCount)
 	InSlowStart() bool

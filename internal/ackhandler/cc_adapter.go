@@ -35,8 +35,8 @@ func (a *ccAdapter) OnPacketAcked(number protocol.PacketNumber, ackedBytes proto
 	a.CC.OnPacketAcked(congestion.PacketNumber(number), congestion.ByteCount(ackedBytes), congestion.ByteCount(priorInFlight), eventTime)
 }
 
-func (a *ccAdapter) OnPacketLost(number protocol.PacketNumber, lostBytes protocol.ByteCount, priorInFlight protocol.ByteCount) {
-	a.CC.OnPacketLost(congestion.PacketNumber(number), congestion.ByteCount(lostBytes), congestion.ByteCount(priorInFlight))
+func (a *ccAdapter) OnCongestionEvent(number protocol.PacketNumber, lostBytes protocol.ByteCount, priorInFlight protocol.ByteCount) {
+	a.CC.OnCongestionEvent(congestion.PacketNumber(number), congestion.ByteCount(lostBytes), congestion.ByteCount(priorInFlight))
 }
 
 func (a *ccAdapter) OnRetransmissionTimeout(packetsRetransmitted bool) {

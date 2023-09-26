@@ -15,9 +15,9 @@ import (
 	"github.com/quic-go/quic-go/internal/wire"
 	"github.com/quic-go/quic-go/logging"
 
-	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"go.uber.org/mock/gomock"
 )
 
 var _ = Describe("Transport", func() {
@@ -126,11 +126,11 @@ var _ = Describe("Transport", func() {
 	It("drops unparseable QUIC packets", func() {
 		addr := &net.UDPAddr{IP: net.IPv4(9, 8, 7, 6), Port: 1234}
 		packetChan := make(chan packetToRead)
-		tracer := mocklogging.NewMockTracer(mockCtrl)
+		t, tracer := mocklogging.NewMockTracer(mockCtrl)
 		tr := &Transport{
 			Conn:               newMockPacketConn(packetChan),
 			ConnectionIDLength: 10,
-			Tracer:             tracer,
+			Tracer:             t,
 		}
 		tr.init(true)
 		dropped := make(chan struct{})
@@ -328,11 +328,9 @@ var _ = Describe("Transport", func() {
 	It("allows receiving non-QUIC packets", func() {
 		remoteAddr := &net.UDPAddr{IP: net.IPv4(9, 8, 7, 6), Port: 1234}
 		packetChan := make(chan packetToRead)
-		tracer := mocklogging.NewMockTracer(mockCtrl)
 		tr := &Transport{
 			Conn:               newMockPacketConn(packetChan),
 			ConnectionIDLength: 10,
-			Tracer:             tracer,
 		}
 		tr.init(true)
 		receivedPacketChan := make(chan []byte)
@@ -362,11 +360,11 @@ var _ = Describe("Transport", func() {
 	It("drops non-QUIC packet if the application doesn't process them quickly enough", func() {
 		remoteAddr := &net.UDPAddr{IP: net.IPv4(9, 8, 7, 6), Port: 1234}
 		packetChan := make(chan packetToRead)
-		tracer := mocklogging.NewMockTracer(mockCtrl)
+		t, tracer := mocklogging.NewMockTracer(mockCtrl)
 		tr := &Transport{
 			Conn:               newMockPacketConn(packetChan),
 			ConnectionIDLength: 10,
-			Tracer:             tracer,
+			Tracer:             t,
 		}
 		tr.init(true)
 
@@ -396,6 +394,18 @@ var _ = Describe("Transport", func() {
 		close(packetChan)
 		tr.Close()
 	})
+
+	remoteAddr := &net.UDPAddr{IP: net.IPv4(1, 3, 5, 7), Port: 1234}
+	DescribeTable("setting the tls.Config.ServerName",
+		func(expected string, conf *tls.Config, addr net.Addr, host string) {
+			setTLSConfigServerName(conf, addr, host)
+			Expect(conf.ServerName).To(Equal(expected))
+		},
+		Entry("uses the value from the config", "foo.bar", &tls.Config{ServerName: "foo.bar"}, remoteAddr, "baz.foo"),
+		Entry("uses the hostname", "golang.org", &tls.Config{}, remoteAddr, "golang.org"),
+		Entry("removes the port from the hostname", "golang.org", &tls.Config{}, remoteAddr, "golang.org:1234"),
+		Entry("uses the IP", "1.3.5.7", &tls.Config{}, remoteAddr, ""),
+	)
 })
 
 type mockSyscallConn struct {
