@@ -2357,7 +2357,7 @@ func (e ErrMessageTooLarge) Error() string {
 	return fmt.Sprintf("message too large (maximum: %d bytes)", e)
 }
 
-func (s *connection) SendMessage(p []byte) error {
+func (s *connection) SendDatagram(p []byte) error {
 	if !s.supportsDatagrams() {
 		return errors.New("datagram support disabled")
 	}
@@ -2372,7 +2372,7 @@ func (s *connection) SendMessage(p []byte) error {
 	return s.datagramQueue.AddAndWait(f)
 }
 
-func (s *connection) ReceiveMessage(ctx context.Context) ([]byte, error) {
+func (s *connection) ReceiveDatagram(ctx context.Context) ([]byte, error) {
 	if !s.config.EnableDatagrams {
 		return nil, errors.New("datagram support disabled")
 	}
