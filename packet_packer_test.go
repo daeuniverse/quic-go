@@ -516,7 +516,6 @@ var _ = Describe("Packet packer", func() {
 				buffer.Data = append(buffer.Data, []byte("foobar")...)
 				p, err := packer.AppendPacket(buffer, maxPacketSize, protocol.Version1)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(p).ToNot(BeNil())
 				b, err := f.Append(nil, protocol.Version1)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(p.Frames).To(BeEmpty())
@@ -535,7 +534,6 @@ var _ = Describe("Packet packer", func() {
 				sealingManager.EXPECT().Get1RTTSealer().Return(getSealer(), nil)
 				p, err := packer.AppendPacket(getPacketBuffer(), maxPacketSize, protocol.Version1)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(p).ToNot(BeNil())
 				Expect(p.Ack).To(Equal(ack))
 			})
 
@@ -553,11 +551,40 @@ var _ = Describe("Packet packer", func() {
 				expectAppendStreamFrames()
 				buffer := getPacketBuffer()
 				p, err := packer.AppendPacket(buffer, maxPacketSize, protocol.Version1)
-				Expect(p).ToNot(BeNil())
 				Expect(err).ToNot(HaveOccurred())
 				Expect(p.Frames).To(HaveLen(2))
 				for i, f := range p.Frames {
 					Expect(f).To(BeAssignableToTypeOf(frames[i]))
+				}
+				Expect(buffer.Len()).ToNot(BeZero())
+			})
+
+			It("packs PATH_CHALLENGE and PATH_RESPONSE frames", func() {
+				pnManager.EXPECT().PeekPacketNumber(protocol.Encryption1RTT).Return(protocol.PacketNumber(0x42), protocol.PacketNumberLen2)
+				pnManager.EXPECT().PopPacketNumber(protocol.Encryption1RTT).Return(protocol.PacketNumber(0x42))
+				sealingManager.EXPECT().Get1RTTSealer().Return(getSealer(), nil)
+				framer.EXPECT().HasData().Return(true)
+				ackFramer.EXPECT().GetAckFrame(protocol.Encryption1RTT, false)
+				frames := []ackhandler.Frame{
+					{Frame: &wire.PathChallengeFrame{}},
+					{Frame: &wire.PathResponseFrame{}},
+					{Frame: &wire.DataBlockedFrame{}},
+				}
+				expectAppendControlFrames(frames...)
+				expectAppendStreamFrames()
+				buffer := getPacketBuffer()
+				p, err := packer.AppendPacket(buffer, maxPacketSize, protocol.Version1)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(p.Frames).To(HaveLen(3))
+				for i, f := range p.Frames {
+					Expect(f).To(BeAssignableToTypeOf(frames[i]))
+					switch f.Frame.(type) {
+					case *wire.PathChallengeFrame, *wire.PathResponseFrame:
+						// This means that the frame won't be retransmitted.
+						Expect(f.Handler).To(BeNil())
+					default:
+						Expect(f.Handler).ToNot(BeNil())
+					}
 				}
 				Expect(buffer.Len()).ToNot(BeZero())
 			})
@@ -575,7 +602,7 @@ var _ = Describe("Packet packer", func() {
 				go func() {
 					defer GinkgoRecover()
 					defer close(done)
-					datagramQueue.AddAndWait(f)
+					datagramQueue.Add(f)
 				}()
 				// make sure the DATAGRAM has actually been queued
 				time.Sleep(scaleDuration(20 * time.Millisecond))
@@ -583,7 +610,6 @@ var _ = Describe("Packet packer", func() {
 				framer.EXPECT().HasData()
 				buffer := getPacketBuffer()
 				p, err := packer.AppendPacket(buffer, maxPacketSize, protocol.Version1)
-				Expect(p).ToNot(BeNil())
 				Expect(err).ToNot(HaveOccurred())
 				Expect(p.Frames).To(HaveLen(1))
 				Expect(p.Frames[0].Frame).To(Equal(f))
@@ -604,7 +630,7 @@ var _ = Describe("Packet packer", func() {
 				go func() {
 					defer GinkgoRecover()
 					defer close(done)
-					datagramQueue.AddAndWait(f)
+					datagramQueue.Add(f)
 				}()
 				// make sure the DATAGRAM has actually been queued
 				time.Sleep(scaleDuration(20 * time.Millisecond))
@@ -612,12 +638,39 @@ var _ = Describe("Packet packer", func() {
 				framer.EXPECT().HasData()
 				buffer := getPacketBuffer()
 				p, err := packer.AppendPacket(buffer, maxPacketSize, protocol.Version1)
-				Expect(p).ToNot(BeNil())
 				Expect(err).ToNot(HaveOccurred())
 				Expect(p.Ack).ToNot(BeNil())
 				Expect(p.Frames).To(BeEmpty())
 				Expect(buffer.Data).ToNot(BeEmpty())
+				Expect(datagramQueue.Peek()).To(Equal(f)) // make sure the frame is still there
 				datagramQueue.CloseWithError(nil)
+				Eventually(done).Should(BeClosed())
+			})
+
+			It("discards a DATAGRAM frame if it doesn't fit into a packet that doesn't contain an ACK", func() {
+				ackFramer.EXPECT().GetAckFrame(protocol.Encryption1RTT, true)
+				pnManager.EXPECT().PeekPacketNumber(protocol.Encryption1RTT).Return(protocol.PacketNumber(0x42), protocol.PacketNumberLen2)
+				sealingManager.EXPECT().Get1RTTSealer().Return(getSealer(), nil)
+				f := &wire.DatagramFrame{
+					DataLenPresent: true,
+					Data:           make([]byte, maxPacketSize+10), // won't fit
+				}
+				done := make(chan struct{})
+				go func() {
+					defer GinkgoRecover()
+					defer close(done)
+					datagramQueue.Add(f)
+				}()
+				// make sure the DATAGRAM has actually been queued
+				time.Sleep(scaleDuration(20 * time.Millisecond))
+
+				framer.EXPECT().HasData()
+				buffer := getPacketBuffer()
+				p, err := packer.AppendPacket(buffer, maxPacketSize, protocol.Version1)
+				Expect(err).To(MatchError(errNothingToPack))
+				Expect(p.Frames).To(BeEmpty())
+				Expect(p.Ack).To(BeNil())
+				Expect(datagramQueue.Peek()).To(BeNil())
 				Eventually(done).Should(BeClosed())
 			})
 
@@ -746,7 +799,6 @@ var _ = Describe("Packet packer", func() {
 				expectAppendControlFrames()
 				expectAppendStreamFrames(ackhandler.StreamFrame{Frame: f1}, ackhandler.StreamFrame{Frame: f2}, ackhandler.StreamFrame{Frame: f3})
 				p, err := packer.AppendPacket(getPacketBuffer(), maxPacketSize, protocol.Version1)
-				Expect(p).ToNot(BeNil())
 				Expect(err).ToNot(HaveOccurred())
 				Expect(p.Frames).To(BeEmpty())
 				Expect(p.StreamFrames).To(HaveLen(3))
@@ -766,7 +818,6 @@ var _ = Describe("Packet packer", func() {
 						expectAppendControlFrames()
 						expectAppendStreamFrames()
 						p, err := packer.AppendPacket(getPacketBuffer(), maxPacketSize, protocol.Version1)
-						Expect(p).ToNot(BeNil())
 						Expect(err).ToNot(HaveOccurred())
 						Expect(p.Ack).ToNot(BeNil())
 						Expect(p.Frames).To(BeEmpty())
@@ -783,7 +834,6 @@ var _ = Describe("Packet packer", func() {
 					expectAppendControlFrames()
 					expectAppendStreamFrames()
 					p, err := packer.AppendPacket(getPacketBuffer(), maxPacketSize, protocol.Version1)
-					Expect(p).ToNot(BeNil())
 					Expect(err).ToNot(HaveOccurred())
 					var hasPing bool
 					for _, f := range p.Frames {
@@ -802,7 +852,6 @@ var _ = Describe("Packet packer", func() {
 					expectAppendControlFrames()
 					expectAppendStreamFrames()
 					p, err = packer.AppendPacket(getPacketBuffer(), maxPacketSize, protocol.Version1)
-					Expect(p).ToNot(BeNil())
 					Expect(err).ToNot(HaveOccurred())
 					Expect(p.Ack).ToNot(BeNil())
 					Expect(p.Frames).To(BeEmpty())
@@ -852,7 +901,6 @@ var _ = Describe("Packet packer", func() {
 					expectAppendControlFrames(ackhandler.Frame{Frame: &wire.MaxDataFrame{}})
 					p, err := packer.AppendPacket(getPacketBuffer(), maxPacketSize, protocol.Version1)
 					Expect(err).ToNot(HaveOccurred())
-					Expect(p).ToNot(BeNil())
 					Expect(p.Frames).ToNot(ContainElement(&wire.PingFrame{}))
 				})
 			})

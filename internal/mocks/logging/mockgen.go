@@ -31,7 +31,7 @@ type ConnectionTracer interface {
 	ReceivedLongHeaderPacket(*logging.ExtendedHeader, logging.ByteCount, logging.ECN, []logging.Frame)
 	ReceivedShortHeaderPacket(*logging.ShortHeader, logging.ByteCount, logging.ECN, []logging.Frame)
 	BufferedPacket(logging.PacketType, logging.ByteCount)
-	DroppedPacket(logging.PacketType, logging.ByteCount, logging.PacketDropReason)
+	DroppedPacket(logging.PacketType, logging.PacketNumber, logging.ByteCount, logging.PacketDropReason)
 	UpdatedMetrics(rttStats *logging.RTTStats, cwnd, bytesInFlight logging.ByteCount, packetsInFlight int)
 	AcknowledgedPacket(logging.EncryptionLevel, logging.PacketNumber)
 	LostPacket(logging.EncryptionLevel, logging.PacketNumber, logging.PacketLossReason)
@@ -45,6 +45,7 @@ type ConnectionTracer interface {
 	LossTimerExpired(logging.TimerType, logging.EncryptionLevel)
 	LossTimerCanceled()
 	ECNStateUpdated(state logging.ECNState, trigger logging.ECNStateTrigger)
+	ChoseALPN(protocol string)
 	// Close is called when the connection is closed.
 	Close()
 	Debug(name, msg string)
