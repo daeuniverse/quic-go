@@ -11,12 +11,12 @@ import (
 	"reflect"
 	"time"
 
-	mocktls "github.com/quic-go/quic-go/internal/mocks/tls"
-	"github.com/quic-go/quic-go/internal/protocol"
-	"github.com/quic-go/quic-go/internal/qerr"
-	"github.com/quic-go/quic-go/internal/testdata"
-	"github.com/quic-go/quic-go/internal/utils"
-	"github.com/quic-go/quic-go/internal/wire"
+	mocktls "github.com/daeuniverse/quic-go/internal/mocks/tls"
+	"github.com/daeuniverse/quic-go/internal/protocol"
+	"github.com/daeuniverse/quic-go/internal/qerr"
+	"github.com/daeuniverse/quic-go/internal/testdata"
+	"github.com/daeuniverse/quic-go/internal/utils"
+	"github.com/daeuniverse/quic-go/internal/wire"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

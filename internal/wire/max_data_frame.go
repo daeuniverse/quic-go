@@ -3,8 +3,8 @@ package wire
 import (
 	"bytes"
 
-	"github.com/quic-go/quic-go/internal/protocol"
-	"github.com/quic-go/quic-go/quicvarint"
+	"github.com/daeuniverse/quic-go/internal/protocol"
+	"github.com/daeuniverse/quic-go/quicvarint"
 )
 
 // A MaxDataFrame carries flow control information for the connection

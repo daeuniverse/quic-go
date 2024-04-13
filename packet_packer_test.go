@@ -9,14 +9,14 @@ import (
 
 	"golang.org/x/exp/rand"
 
-	"github.com/quic-go/quic-go/internal/ackhandler"
-	"github.com/quic-go/quic-go/internal/handshake"
-	"github.com/quic-go/quic-go/internal/mocks"
-	mockackhandler "github.com/quic-go/quic-go/internal/mocks/ackhandler"
-	"github.com/quic-go/quic-go/internal/protocol"
-	"github.com/quic-go/quic-go/internal/qerr"
-	"github.com/quic-go/quic-go/internal/utils"
-	"github.com/quic-go/quic-go/internal/wire"
+	"github.com/daeuniverse/quic-go/internal/ackhandler"
+	"github.com/daeuniverse/quic-go/internal/handshake"
+	"github.com/daeuniverse/quic-go/internal/mocks"
+	mockackhandler "github.com/daeuniverse/quic-go/internal/mocks/ackhandler"
+	"github.com/daeuniverse/quic-go/internal/protocol"
+	"github.com/daeuniverse/quic-go/internal/qerr"
+	"github.com/daeuniverse/quic-go/internal/utils"
+	"github.com/daeuniverse/quic-go/internal/wire"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

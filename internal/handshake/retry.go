@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/quic-go/quic-go/internal/protocol"
+	"github.com/daeuniverse/quic-go/internal/protocol"
 )
 
 var (

@@ -5,8 +5,8 @@ import (
 	"io"
 	"net/http"
 
-	mockquic "github.com/quic-go/quic-go/internal/mocks/quic"
-	"github.com/quic-go/quic-go/internal/utils"
+	mockquic "github.com/daeuniverse/quic-go/internal/mocks/quic"
+	"github.com/daeuniverse/quic-go/internal/utils"
 
 	"github.com/quic-go/qpack"
 	"go.uber.org/mock/gomock"

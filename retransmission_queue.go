@@ -3,10 +3,10 @@ package quic
 import (
 	"fmt"
 
-	"github.com/quic-go/quic-go/internal/ackhandler"
+	"github.com/daeuniverse/quic-go/internal/ackhandler"
 
-	"github.com/quic-go/quic-go/internal/protocol"
-	"github.com/quic-go/quic-go/internal/wire"
+	"github.com/daeuniverse/quic-go/internal/protocol"
+	"github.com/daeuniverse/quic-go/internal/wire"
 )
 
 type retransmissionQueue struct {
